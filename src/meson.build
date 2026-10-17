@@ -22,3 +22,13 @@ forti_pihole_exe = executable('forti-pihole', 'main.cpp',
                                 dependencies : fph_core_dep,
                                 implicit_include_directories : false,
                                 install : true)
+
+# The CIDR allocation planner for DHCP address slicing (alloc/): pure functions, no engine. Its own
+# library so it builds and tests on its own; only nlohmann/json's headers come from forti-api.
+fph_json_headers = dependency('forti-api').partial_dependency(compile_args : true, includes : true)
+fph_alloc = static_library('forti-pihole-alloc',
+                           'alloc/cidr.cpp', 'alloc/plan.cpp', 'alloc/render.cpp',
+                           include_directories : fph_inc,
+                           dependencies : fph_json_headers,
+                           implicit_include_directories : false)
+fph_alloc_dep = declare_dependency(include_directories : fph_inc, link_with : fph_alloc, dependencies : fph_json_headers)

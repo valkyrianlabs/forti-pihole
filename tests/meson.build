@@ -17,4 +17,12 @@ if gtest_dep.found()
     test('unit', unit_tests,
          env : asan_options != '' ? {'ASAN_OPTIONS' : asan_options} : {},
          suite : 'unit')
+
+    alloc_tests = executable('allocTests',
+                             'alloc/test_cidr.cpp',
+                             'alloc/test_plan.cpp',
+                             'alloc/test_household.cpp',
+                             dependencies : [fph_alloc_dep, gtest_dep],
+                             implicit_include_directories : false)
+    test('alloc', alloc_tests, suite : 'unit')
 endif
