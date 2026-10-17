@@ -23,8 +23,8 @@ class FortiPihole < Formula
   # needs neither the forti-cli formula nor the `forti` executable at run time; profiles are
   # usually created with `forti configure`, so install valkyrianlabs/tap/forti-cli as well.
   resource "forti-cli" do
-    url "https://github.com/valkyrianlabs/forti-cli/archive/468f9e1e8f6a8a17852834ad6127df0c81815b07.tar.gz"
-    sha256 "11f0c95c06f970da0b7d67f1bf877d7958968575fe61c6a7ef2cc662e5bfec9e"
+    url "https://github.com/valkyrianlabs/forti-cli/archive/6a17b34a7b8f4aaedeee33a9f4ea71a71f73f855.tar.gz"
+    sha256 "3193e73a3d8d660b821c1960f8d0bb3b29b8b10f96fb8a10f55cc4f500b14421"
   end
 
   def install

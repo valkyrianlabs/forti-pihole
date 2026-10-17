@@ -39,8 +39,8 @@ One level of nested "  - " detail bullets is allowed. Consolidate; don't paste c
 - forti-pihole --version and forti-piholed --version report the forti-cli engine revision and the
   forti-api version.
 ## Packaging
-- The command engine is compiled in statically from forti-cli v0.4.2 (468f9e1), on the system
-  libforti-api-dev (>= 1.1.1), with --wrap-mode=nodownload: the package build fetches nothing.
+- The command engine is compiled in statically from forti-cli v0.5.0 (6a17b34), on the system
+  libforti-api-dev (>= 1.2.0), with --wrap-mode=nodownload: the package build fetches nothing.
 - systemd user units forti-pihole.service (oneshot apply --quiet), forti-pihole.timer (every 15
   minutes) and forti-piholed.service in /usr/lib/systemd/user, installed but never enabled;
   config.example.json and daemon.example.json in /usr/share/forti-pihole.

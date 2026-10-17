@@ -10,7 +10,7 @@ below). The generic workflow is in `.claude/skills/vl-release/SKILL.md`, this re
 
 | Channel | Artifact | Built by |
 |---|---|---|
-| APT (`apt.valkyrianlabs.com`, suite `stable`, `main`) | `forti-pihole_<v>-1_amd64.deb`: `/usr/bin/forti-pihole`, the systemd user units in `/usr/lib/systemd/user/` (installed, never enabled), `/usr/share/forti-pihole/config.example.json`, copyright | `vlr build-deb` (`debian/`, against `libforti-api-dev >= 1.1.1`) |
+| APT (`apt.valkyrianlabs.com`, suite `stable`, `main`) | `forti-pihole_<v>-1_amd64.deb`: `/usr/bin/forti-pihole`, the systemd user units in `/usr/lib/systemd/user/` (installed, never enabled), `/usr/share/forti-pihole/config.example.json`, copyright | `vlr build-deb` (`debian/`, against `libforti-api-dev >= 1.2.0`) |
 | GitHub release | the .deb, `forti-pihole-<v>.tar.gz` (prepared tracked tree), the Homebrew bottles, `SHA256SUMS` | `vlr source-archive`, `vlr checksums`, `vlr github-release` |
 | Homebrew (`valkyrianlabs/tap`) | `Formula/forti-pihole.rb`, builds from the source archive (no systemd units on macOS) | `vlr homebrew formula` / `publish` (`packaging/homebrew/forti-pihole.rb`) |
 
@@ -26,7 +26,7 @@ workflow's clean-install test checks that no `timers.target.wants` link appears.
 
 forti-pihole compiles forti-cli's engine (`engine/`, Meson dependency `forti-engine`) from source, as
 the subproject `subprojects/forti-cli`, exactly as forti-mcp does. **`subprojects/forti-cli.wrap` is
-the single pin**: a full commit id (`revision`; today forti-cli v0.4.2, the engine forti-mcp 0.4.1
+the single pin**: a full commit id (`revision`; today forti-cli v0.5.0, the engine forti-mcp
 ships). Every build path uses exactly that revision:
 
 | Build | Where the engine source comes from | Verified by |
@@ -42,7 +42,7 @@ change `revision` in the wrap, run `packaging/forti-cli-pin.sh update` (rewrites
 sha256), commit both. Pin a forti-cli release tag's commit.
 
 The built binary says what it was built from: `forti-pihole --version` prints
-`forti-pihole 0.1.0 (engine forti-cli 468f9e1, forti-api 1.1.1)`. The revision is the wrap's for
+`forti-pihole 0.1.0 (engine forti-cli 6a17b34, forti-api 1.2.0)`. The revision is the wrap's for
 package builds (an unpacked archive has no Git metadata), or the actual HEAD (`-dirty` with local
 changes) when `subprojects/forti-cli` is a Git checkout. CI's clean-install and formula checks compare
 it with the wrap. Why the engine is not vendored into the source archive: forti-mcp's
@@ -96,7 +96,7 @@ repository access).
 - [ ] The docs set `forti-pihole` exists on the docs site and trusts this repository's workflows over
       GitHub OIDC. Until then CI's dry-run sync on pushes to `main` fails.
 - [ ] If `main` is protected, `github-actions[bot]` may push the `finalize` commit.
-- [ ] `libforti-api-dev >= 1.1.1` is in the APT index and `forti-api` 1.1.1 is in the tap (both are).
+- [ ] `libforti-api-dev >= 1.2.0` is in the APT index and `forti-api` 1.2.0 is in the tap (both are).
 - [ ] The wrap pins the forti-cli commit that should ship, and the formula's resource matches
       (`packaging/forti-cli-pin.sh check --download`).
 - [ ] Staged release docs describe the first release; `vlr status` says `pending`.

@@ -52,7 +52,7 @@ endif
 if engine_revision == ''
     error('subprojects/forti-cli.wrap has no revision')
 endif
-forti_api_version = dependency('forti-api').version()
+forti_api_version = dependency('forti-api', version : '>=1.2.0').version()
 
 subdir('src')
 subdir('tests')

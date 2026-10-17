@@ -6,7 +6,7 @@ Build-Depends:
  debhelper-compat (= 13),
  g++ (>= 4:13),
  libcurl4-openssl-dev | libcurl-dev,
- libforti-api-dev (>= 1.1.1),
+ libforti-api-dev (>= 1.2.0),
  libgtest-dev <!nocheck>,
  meson (>= 1.3.0),
  ninja-build,
