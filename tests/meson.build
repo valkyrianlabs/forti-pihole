@@ -18,3 +18,6 @@ if gtest_dep.found()
          env : asan_options != '' ? {'ASAN_OPTIONS' : asan_options} : {},
          suite : 'unit')
 endif
+
+# The Pi-hole client's tests (tests/pihole/meson.build).
+subdir('pihole')

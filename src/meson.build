@@ -22,3 +22,6 @@ forti_pihole_exe = executable('forti-pihole', 'main.cpp',
                                 dependencies : fph_core_dep,
                                 implicit_include_directories : false,
                                 install : true)
+
+# The Pi-hole API client library (src/pihole/meson.build defines fph_pihole_dep).
+subdir('pihole')
