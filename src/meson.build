@@ -22,3 +22,6 @@ forti_pihole_exe = executable('forti-pihole', 'main.cpp',
                                 dependencies : fph_core_dep,
                                 implicit_include_directories : false,
                                 install : true)
+
+# The optional runtime service (src/daemon/meson.build defines forti_piholed_exe and fphd_core_dep).
+subdir('daemon')

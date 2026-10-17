@@ -1,0 +1,62 @@
+# forti-piholed: the optional runtime service (a systemd *user* unit). It receives the FortiGate's
+# config-change webhooks (automation stitch) and runs forti-pihole's reconcile promptly after a
+# change, plus a periodic full reconcile, with backoff on failure. It reads the forti home (~/.forti,
+# or $FORTI_HOME) of the user whose manager runs it: profiles and credentials (`forti configure`), the
+# webhook token in the secret store, and $FORTI_HOME/pihole/ (daemon.json, daemon-state.json,
+# events.jsonl). Example configuration: /usr/share/forti-pihole/daemon.example.json.
+#
+# Nothing on the network depends on it: when it fails or is stopped, the FortiGate keeps its
+# objects and traffic is unaffected (fail-static); the next start resumes any recorded backoff.
+# With this service enabled the periodic timer is redundant (the daemon reconciles every 15 min
+# itself): systemctl --user disable --now forti-pihole.timer
+#
+# Plain HTTP only: the bearer token crosses the network in cleartext. The default listener is
+# 127.0.0.1:8735, so nothing is exposed until daemon.json binds it to the management interface.
+#
+# Enable for your user (never enabled by the package):
+#   systemctl --user enable --now forti-piholed.service
+# For it to run while you are logged out: loginctl enable-linger "$USER"
+# Reload daemon.json and the token without a restart: systemctl --user reload forti-piholed
+# Another forti home or binary path: systemctl --user edit forti-piholed.service, e.g.
+#   [Service]
+#   Environment=FORTI_HOME=/srv/forti
+#   ExecStart=
+#   ExecStart=/usr/local/bin/forti-piholed --foreground
+[Unit]
+Description=forti-pihole event receiver and scheduler (forti-piholed)
+Documentation=https://github.com/valkyrianlabs/forti-pihole
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/forti-piholed --foreground
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=10s
+# SIGTERM lets a reconcile in progress finish (the engine's timeouts bound it) before exit.
+TimeoutStopSec=10min
+Nice=10
+
+# Hardening: as forti-pihole.service. Seccomp, rlimits and plain process attributes only, which a
+# user manager can apply without privileges; mount-namespace options (ProtectSystem=, ProtectHome=,
+# PrivateTmp=, ReadWritePaths=) are absent because in a user unit they need an unprivileged user
+# namespace, which Ubuntu 24.04 restricts by default (AppArmor), and the unit would fail to start.
+UMask=0077
+NoNewPrivileges=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+# The listener and HTTPS to the FortiGate (IPv4/IPv6), local sockets (name resolution).
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallErrorNumber=EPERM
+# The webhook token and the engine's credentials must never end up in a core file.
+LimitCORE=0
+
+[Install]
+WantedBy=default.target

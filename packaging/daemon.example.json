@@ -1,0 +1,18 @@
+{
+  "$comment": "forti-piholed settings; copy to $FORTI_HOME/pihole/daemon.json. Plain HTTP: bind to the management interface only. The webhook token lives in forti's secret store, never here.",
+  "profile": "",
+  "listen": {"address": "127.0.0.1", "port": 8735},
+  "allow_sources": [],
+  "limits": {"max_header_bytes": 8192, "max_body_bytes": 65536, "read_timeout_ms": 5000, "max_connections": 16},
+  "rate_limit": {"burst": 30, "per_minute": 120},
+  "schedule": {
+    "debounce_seconds": 10,
+    "max_delay_seconds": 60,
+    "full_reconcile_minutes": 15,
+    "backoff_initial_seconds": 10,
+    "backoff_max_seconds": 900,
+    "suppression_seconds": 60
+  },
+  "event_log": {"max_mib": 4},
+  "token_account": ""
+}

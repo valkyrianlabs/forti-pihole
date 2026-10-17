@@ -36,8 +36,9 @@ endif
 
 # The systemd user units are installed by meson (usr/lib/systemd/user) but must never be enabled by
 # the package: reconciling a FortiGate is an operator's decision, made per user with
-# `systemctl --user enable --now forti-pihole.timer`. dh_installsystemduser would enable them for
-# every user, so it does not run.
+# `systemctl --user enable --now forti-pihole.timer` (or forti-piholed.service, the optional
+# receiver, which opens a listening socket). dh_installsystemduser would enable them for every user,
+# so it does not run.
 override_dh_installsystemduser:
 
 # No -dbgsym package: the build has no debug info (-g is stripped above), so it would be empty.

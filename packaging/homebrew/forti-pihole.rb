@@ -2,7 +2,7 @@
 
 # Formula template. `vlr homebrew formula` renders the release url/sha256 into
 # release/homebrew/forti-pihole.rb, which `vlr homebrew publish` commits to valkyrianlabs/homebrew-tap.
-class FortiVlanMac < Formula
+class FortiPihole < Formula
   desc "Keeps FortiGate device inventory segments in native FortiOS address objects"
   homepage "https://github.com/valkyrianlabs/forti-pihole"
   url "https://github.com/valkyrianlabs/forti-pihole/releases/download/v0.1.0/forti-pihole-0.1.0.tar.gz"
@@ -50,6 +50,17 @@ class FortiVlanMac < Formula
     EOS
   end
 
+  # `brew services start forti-pihole`: the optional receiver/scheduler under launchd (macOS) or a
+  # systemd user unit (Linuxbrew), in the foreground and restarted if it crashes. It logs to stderr in
+  # logfmt; without a daemon.json it listens on 127.0.0.1:8735 only and runs periodic reconciles.
+  service do
+    run [opt_bin/"forti-piholed", "--foreground"]
+    keep_alive crashed: true
+    process_type :background
+    log_path var/"log/forti-piholed.log"
+    error_log_path var/"log/forti-piholed.log"
+  end
+
   test do
     # Offline: neither needs a profile, a device or the network.
     ENV["FORTI_HOME"] = (testpath/"forti").to_s
@@ -58,5 +69,7 @@ class FortiVlanMac < Formula
     %w[report plan apply assign confirm status history].each do |command|
       assert_match command, help
     end
+    assert_match "forti-piholed #{version} (engine forti-cli ", shell_output("#{bin}/forti-piholed --version")
+    assert_match "/v1/fortigate/events", shell_output("#{bin}/forti-piholed --help")
   end
 end

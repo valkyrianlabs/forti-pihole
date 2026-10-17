@@ -32,6 +32,8 @@ Description: FortiGate device inventory segments kept in native FortiOS objects
  .
  It is never in the traffic path. A systemd user timer (shipped, never
  enabled) runs it periodically; nothing on the network depends on it running.
+ The optional forti-piholed service (a user unit, also never enabled)
+ receives FortiGate config-change webhooks and reconciles promptly.
  It writes only address objects and address groups that carry its own name
  prefix and ownership marker, and never touches interfaces, policies,
  routing, DHCP or administrator-created objects.

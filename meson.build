@@ -63,13 +63,15 @@ subdir('tests')
 # The unit's ExecStart names /usr/bin/forti-pihole (the package path); a source install under
 # another prefix needs `systemctl --user edit forti-pihole.service`. macOS has no systemd, so
 # nothing is installed there.
+# forti-piholed.service (the optional receiver/scheduler) is installed the same way, never enabled.
 if host_machine.system() == 'linux'
     install_data('packaging/systemd/forti-pihole.service', 'packaging/systemd/forti-pihole.timer',
+                 'packaging/systemd/forti-piholed.service',
                  install_dir : get_option('prefix') / 'lib' / 'systemd' / 'user')
 endif
 
-# A starting point for $FORTI_HOME/pihole/config.json; never read from here.
-install_data('packaging/config.example.json',
+# Starting points for $FORTI_HOME/pihole/config.json and daemon.json; never read from here.
+install_data('packaging/config.example.json', 'packaging/daemon.example.json',
              install_dir : get_option('datadir') / 'forti-pihole')
 
 summary({'engine': 'forti-cli ' + engine_revision, 'forti-api': forti_api_version}, section : 'Built from')

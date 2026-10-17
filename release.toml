@@ -51,14 +51,17 @@ name = "forti-pihole"
 # One architecture per package contract (vl-release 0.5): amd64 only until vl-release accepts one
 # .deb per architecture of the same package (.claude/context/release.md, "Multi-architecture").
 architecture = "amd64"
-# The executable, the systemd user units the operator opts into (installed, never enabled) and the
-# example configuration.
+# The executables (forti-pihole and the optional service forti-piholed), the systemd user units the
+# operator opts into (installed, never enabled) and the example configurations.
 required_paths = [
   "usr/bin/forti-pihole",
+  "usr/bin/forti-piholed",
   "usr/share/doc/forti-pihole/copyright",
   "usr/lib/systemd/user/forti-pihole.service",
   "usr/lib/systemd/user/forti-pihole.timer",
+  "usr/lib/systemd/user/forti-piholed.service",
   "usr/share/forti-pihole/config.example.json",
+  "usr/share/forti-pihole/daemon.example.json",
 ]
 # An executable package: the engine is internal and static, so no headers, libraries or pkg-config
 # files ship; forti-cli's own executable and man page never come along (the subproject builds no
