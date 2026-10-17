@@ -1,0 +1,16 @@
+# Runs forti-vlan-mac.service every 15 minutes (a systemd *user* timer). Never enabled by the
+# package; opt in with: systemctl --user enable --now forti-vlan-mac.timer
+[Unit]
+Description=Reconcile FortiGate device segments every 15 minutes
+Documentation=https://github.com/valkyrianlabs/forti-vlan-mac
+
+[Timer]
+OnCalendar=*:0/15
+# A run missed while the machine was off or asleep happens once at the next opportunity.
+Persistent=true
+# Spread over the first two minutes so several machines (or users) do not hit one FortiGate at once.
+RandomizedDelaySec=2min
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

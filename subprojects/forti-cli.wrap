@@ -1,0 +1,13 @@
+# forti-cli provides forti-engine, the command engine forti-vlan-mac links statically. Only the
+# engine is built when forti-cli is a subproject. For co-development, replace subprojects/forti-cli
+# with a checkout or a symlink to ../forti-cli; Meson then uses it instead of downloading.
+[wrap-git]
+url = https://github.com/valkyrianlabs/forti-cli.git
+# Pinned to forti-cli v0.4.2, as its full commit id (package builds use exactly this revision;
+# forti-mcp 0.4.1 ships the same engine). After changing it, run `packaging/forti-cli-pin.sh update`
+# (the Homebrew formula's forti-cli resource) and commit both (.claude/context/release.md, "Engine source").
+revision = 468f9e1e8f6a8a17852834ad6127df0c81815b07
+depth = 1
+
+[provide]
+forti-engine = forti_engine_dep

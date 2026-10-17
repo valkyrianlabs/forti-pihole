@@ -1,0 +1,11 @@
+build/
+release/
+subprojects/*
+!subprojects/*.wrap
+!subprojects/packagefiles/
+compile_commands.json
+.cache/
+.DS_Store
+.idea
+*.iml
+.env
