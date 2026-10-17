@@ -31,3 +31,6 @@ if gtest_dep.found()
                              implicit_include_directories : false)
     test('alloc', alloc_tests, suite : 'unit')
 endif
+
+# The Pi-hole client's tests (tests/pihole/meson.build).
+subdir('pihole')

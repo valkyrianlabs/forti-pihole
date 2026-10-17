@@ -17,16 +17,19 @@ fph_alloc = static_library('forti-pihole-alloc',
                            implicit_include_directories : false)
 fph_alloc_dep = declare_dependency(include_directories : fph_inc, link_with : fph_alloc, dependencies : fph_json_headers)
 
+# The Pi-hole API client library (src/pihole/meson.build defines fph_pihole_dep).
+subdir('pihole')
+
 # Everything but main(): the executable and the unit tests link the same library.
 fph_core = static_library('forti-pihole-core',
                           'mac.cpp', 'config.cpp', 'inventory.cpp', 'address_match.cpp', 'classify.cpp', 'reassociate.cpp',
                           'connectivity.cpp', 'references.cpp', 'operation.cpp', 'pihole_sync.cpp', 'slicing.cpp', 'migrate.cpp', 'guard.cpp', 'reconcile.cpp', 'state.cpp', 'report.cpp', 'gateway.cpp', 'cli.cpp',
                           version_hpp,
                           include_directories : fph_inc,
-                          dependencies : [forti_engine, fph_alloc_dep],
+                          dependencies : [forti_engine, fph_alloc_dep, fph_pihole_dep],
                           implicit_include_directories : false)
 fph_core_dep = declare_dependency(include_directories : fph_inc, link_with : fph_core,
-                                  dependencies : [forti_engine, fph_alloc_dep], sources : version_hpp)
+                                  dependencies : [forti_engine, fph_alloc_dep, fph_pihole_dep], sources : version_hpp)
 
 forti_pihole_exe = executable('forti-pihole', 'main.cpp',
                                 dependencies : fph_core_dep,

@@ -12,6 +12,8 @@
 #ifndef FORTI_PIHOLE_CONFIG_HPP
 #define FORTI_PIHOLE_CONFIG_HPP
 
+#include "pihole/marker.hpp"
+
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
@@ -135,7 +137,7 @@ namespace fph {
 
     // The comment every managed object carries; objects without it are an administrator's and are
     // never modified or deleted.
-    inline constexpr std::string_view marker = "managed by forti-pihole";
+    inline constexpr std::string_view marker = ownership_marker;
 
     // Loads and validates; a missing file is ConfigError with a hint to run `forti-pihole init`.
     Config load_config(const std::filesystem::path& path);
