@@ -54,3 +54,17 @@ endif
 
 # The Pi-hole client's tests (tests/pihole/meson.build).
 subdir('pihole')
+
+# The real binaries end to end (tests/integration, suite 'integration'): forti-pihole and forti-piholed
+# through the real engine (libcurl, verified TLS, plan/apply, audit, rollback plans) against forti-cli's
+# stateful mock FortiOS, which the test extends from here, and tests/mock-pihole. forti-cli exports the
+# mock's directory even with subproject_cli=false. Exit 77 (skipped) without openssl or the mock.
+fph_mock_fortios_dir = forti_cli.get_variable('mock_fortios_dir', '')
+fph_python = find_program('python3', required : false)
+if fph_python.found() and not get_option('tests').disabled()
+    test('pihole-e2e', fph_python, args : [files('integration/test_forti_pihole.py')],
+         env : {'FPH_BINARY' : forti_pihole_exe.full_path(), 'FPH_DAEMON' : forti_piholed_exe.full_path(),
+                'FORTI_MOCK_DIR' : fph_mock_fortios_dir, 'PYTHONDONTWRITEBYTECODE' : '1'}
+              + (asan_options != '' ? {'ASAN_OPTIONS' : asan_options} : {}),
+         depends : [forti_pihole_exe, forti_piholed_exe], suite : 'integration', timeout : 300)
+endif
