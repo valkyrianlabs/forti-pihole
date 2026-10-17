@@ -10,7 +10,7 @@ fph_inc = include_directories('.')
 # Everything but main(): the executable and the unit tests link the same library.
 fph_core = static_library('forti-pihole-core',
                           'mac.cpp', 'config.cpp', 'inventory.cpp', 'address_match.cpp', 'classify.cpp', 'reassociate.cpp',
-                          'connectivity.cpp', 'references.cpp', 'guard.cpp', 'reconcile.cpp', 'state.cpp', 'report.cpp', 'gateway.cpp', 'cli.cpp',
+                          'connectivity.cpp', 'references.cpp', 'operation.cpp', 'guard.cpp', 'reconcile.cpp', 'state.cpp', 'report.cpp', 'gateway.cpp', 'cli.cpp',
                           version_hpp,
                           include_directories : fph_inc,
                           dependencies : forti_engine,

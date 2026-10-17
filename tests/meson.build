@@ -12,6 +12,7 @@ if gtest_dep.found()
                             'unit/test_reconcile.cpp',
                             'unit/test_cli.cpp',
                             'unit/test_references.cpp',
+                            'unit/test_operation.cpp',
                             include_directories : include_directories('support'),
                             dependencies : [fph_core_dep, gtest_dep],
                             implicit_include_directories : false)
