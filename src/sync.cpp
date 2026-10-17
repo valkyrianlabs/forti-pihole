@@ -146,7 +146,9 @@ namespace fph {
                 state.last_plan = s.plan_id;
                 s.status = "applied";
                 s.detail = summary_of(r.objects);
-                if (applied["data"].contains("rollback")) s.rollback_plan = applied["data"]["rollback"].value("plan_id", std::string());
+                // The engine reports "rollback": {"plan_id": null} when there is nothing to undo.
+                if (auto rb = applied["data"].value("rollback", json::object()); rb.is_object() && rb.value("plan_id", json()).is_string())
+                    s.rollback_plan = rb["plan_id"].get<std::string>();
                 note_written(r, r.objects.operations);
             } else {
                 auto code = applied["error"].value("code", std::string());
