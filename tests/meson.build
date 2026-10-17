@@ -11,6 +11,7 @@ if gtest_dep.found()
                             'unit/test_classify.cpp',
                             'unit/test_reconcile.cpp',
                             'unit/test_cli.cpp',
+                            'unit/test_references.cpp',
                             include_directories : include_directories('support'),
                             dependencies : [fph_core_dep, gtest_dep],
                             implicit_include_directories : false)
