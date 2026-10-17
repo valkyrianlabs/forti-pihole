@@ -96,6 +96,17 @@ namespace fph {
                 check_reservation_op(op, where, snapshot, permits);
                 continue;
             }
+            if (resource.starts_with("system/automation-")) {
+                if (!permits.automation) throw GuardViolation(where + ": automation objects only inside forti-pihole events install|remove");
+                if (resource != "system/automation-trigger" && resource != "system/automation-action" && resource != "system/automation-stitch")
+                    throw GuardViolation(where + ": " + resource + " is not writable");
+                auto name = kind == "create" ? op.value("object", json::object()).value("name", std::string()) : op.value("key", std::string());
+                if (!name.starts_with(config.prefix)) throw GuardViolation(std::format("{}: {} lacks the prefix {}", where, name, config.prefix));
+                if (kind == "create" && !has_marker_in(op.value("object", json::object()), "description"))
+                    throw GuardViolation(where + ": automation objects must carry the ownership marker");
+                if (kind != "create" && kind != "delete") throw GuardViolation(where + ": only create and delete of automation objects");
+                continue;
+            }
             if (resource == "monitor/system/dhcp/revoke") {
                 if (kind != "action") throw GuardViolation(where + ": revoke is an action");
                 const auto& ips = op.value("body", json::object()).value("ip", json::array());
@@ -173,6 +184,21 @@ namespace fph {
             if (!parse_id(rest.substr(1), entry)) return "reservation key is not a number";
             if (method == fortiapi::Method::Post) return "POST to a reservation entry path";
             if (!permits.reservations.contains({server, entry})) return std::format("reservation {} on server {} is not permitted", entry, server);
+            return {};
+        }
+        for (std::string_view table: {"cmdb/system/automation-trigger", "cmdb/system/automation-action", "cmdb/system/automation-stitch"}) {
+            if (path != table && !path.starts_with(std::string(table) + "/")) continue;
+            if (!permits.automation) return "automation objects are written only by forti-pihole events install|remove";
+            if (path == table) {
+                if (method != fortiapi::Method::Post) return "only creates on an automation table";
+                auto parsed = json::parse(body, nullptr, false);
+                auto name = parsed.is_object() ? parsed.value("name", std::string()) : std::string();
+                if (!name.starts_with(prefix) || !has_marker_in(parsed, "description")) return "automation object without the prefix or marker";
+                return {};
+            }
+            auto rest = path.substr(table.size() + 1);
+            if (rest.find('/') != std::string_view::npos || method != fortiapi::Method::Delete || !percent_decode(rest).starts_with(prefix))
+                return "only deletes of forti-pihole's own automation objects";
             return {};
         }
         if (path == "monitor/system/dhcp/revoke") {

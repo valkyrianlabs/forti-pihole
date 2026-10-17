@@ -60,6 +60,8 @@ namespace fph {
     MigrationPlan plan_migration(const Config& config, const Snapshot& snapshot, const SliceAction& action, const Adoptions& adoptions,
                                  std::int64_t now) {
         MigrationPlan plan;
+        plan.mac = action.mac;
+        plan.label = action.label;
         auto refuse = [&](std::string reason, std::vector<std::string> needs = {}) {
             plan.refusal = {std::move(reason), std::move(needs)};
             return plan;
@@ -83,7 +85,7 @@ namespace fph {
         if (action.reservation_id && !action.reservation_managed && !adoptions.reservation)
             return refuse(std::format("{}'s reservation {} is an administrator's; adopt it to let forti-pihole change it", action.label,
                                       *action.reservation_id),
-                          {"--adopt-reservation"});
+                          {std::format("forti-pihole adopt {} --reservation", action.mac)});
 
         std::vector<std::string> follow;
         std::vector<std::string> needs;
@@ -93,7 +95,7 @@ namespace fph {
                 std::string policies;
                 for (const auto& p: host->policies)
                     if (p.source && p.enabled) policies += std::format("{}{} \"{}\"", policies.empty() ? "" : ", ", p.id, p.name);
-                needs.push_back(std::format("--update-object \"{}\" (source of policy {})", host->name, policies));
+                needs.push_back(std::format("forti-pihole adopt {} --object \"{}\"   (source of policy {})", action.mac, host->name, policies));
             }
         }
         if (!needs.empty())

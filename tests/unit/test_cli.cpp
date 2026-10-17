@@ -29,13 +29,15 @@ TEST(Cli, InitRefusesToOverwrite) {
 
 TEST(Cli, ReportIsReadOnly) {
     Cli cli;
-    EXPECT_EQ(cli({"report", "-v"}), 0);
+    EXPECT_EQ(cli({"devices", "-v"}), 0);
     EXPECT_TRUE(cli.fake.plans.empty());
     EXPECT_FALSE(fs::exists(cli.home.path / "pihole" / "state.json"));
-    auto text = cli.out.str();
-    EXPECT_NE(text.find("iot_untrusted"), std::string::npos);
-    EXPECT_NE(text.find("Pending changes"), std::string::npos);
-    EXPECT_EQ(cli({"report", "--json"}), 0);
+    EXPECT_NE(cli.out.str().find("iot_untrusted"), std::string::npos);
+    EXPECT_EQ(cli({"plan"}), 0);
+    EXPECT_TRUE(cli.fake.plans.empty());
+    EXPECT_FALSE(fs::exists(cli.home.path / "pihole" / "state.json"));
+    EXPECT_NE(cli.out.str().find("Pending changes"), std::string::npos);
+    EXPECT_EQ(cli({"plan", "--json"}), 0);
     auto j = json::parse(cli.out.str());
     EXPECT_EQ(j["devices"].size(), 6u);
     EXPECT_FALSE(j["pending"]["operations"].empty());

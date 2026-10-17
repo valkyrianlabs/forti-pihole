@@ -56,8 +56,18 @@ namespace fph {
         std::int64_t at = 0;
     };
 
+    // What the operator explicitly allowed forti-pihole to change when it moves this device's
+    // address (forti-pihole adopt): administrator host objects that follow the device, and its own
+    // administrator reservation. Nothing is adopted implicitly.
+    struct Adoption {
+        std::set<std::string> objects;
+        bool reservation = false;
+        std::int64_t at = 0;
+    };
+
     struct State {
         std::optional<Pending> pending;
+        std::map<std::string, Adoption> adoptions;   // by MAC
         std::map<std::string, DeviceRecord> devices;   // by MAC
         std::map<std::string, Pin> pins;               // by MAC
         std::vector<Candidate> candidates;

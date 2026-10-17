@@ -53,6 +53,7 @@ namespace fph {
     };
 
     struct MigrationPlan {
+        std::string mac, label;
         std::optional<Operation> operation;   // nullopt: refused
         MigrationRefusal refusal;
         std::vector<IpReference> old_references, new_references;

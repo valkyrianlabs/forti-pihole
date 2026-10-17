@@ -20,21 +20,29 @@ fph_alloc_dep = declare_dependency(include_directories : fph_inc, link_with : fp
 # The Pi-hole API client library (src/pihole/meson.build defines fph_pihole_dep).
 subdir('pihole')
 
+# The runtime service's library (src/daemon/meson.build defines fphd_core_dep): the CLI shares its
+# state file (pause/resume), token store and stitch builder; the executable is defined below.
+subdir('daemon')
+
 # Everything but main(): the executable and the unit tests link the same library.
 fph_core = static_library('forti-pihole-core',
                           'mac.cpp', 'config.cpp', 'inventory.cpp', 'address_match.cpp', 'classify.cpp', 'reassociate.cpp',
-                          'connectivity.cpp', 'references.cpp', 'operation.cpp', 'pihole_sync.cpp', 'slicing.cpp', 'migrate.cpp', 'pihole_link.cpp', 'executors.cpp', 'guard.cpp', 'reconcile.cpp', 'state.cpp', 'report.cpp', 'gateway.cpp', 'cli.cpp',
+                          'connectivity.cpp', 'references.cpp', 'operation.cpp', 'pihole_sync.cpp', 'slicing.cpp', 'migrate.cpp', 'pihole_link.cpp', 'executors.cpp', 'sync.cpp', 'guard.cpp', 'reconcile.cpp', 'state.cpp', 'report.cpp', 'gateway.cpp', 'cli.cpp',
                           version_hpp,
                           include_directories : fph_inc,
-                          dependencies : [forti_engine, fph_alloc_dep, fph_pihole_dep],
+                          dependencies : [forti_engine, fph_alloc_dep, fph_pihole_dep, fphd_core_dep],
                           implicit_include_directories : false)
 fph_core_dep = declare_dependency(include_directories : fph_inc, link_with : fph_core,
-                                  dependencies : [forti_engine, fph_alloc_dep, fph_pihole_dep], sources : version_hpp)
+                                  dependencies : [forti_engine, fph_alloc_dep, fph_pihole_dep, fphd_core_dep], sources : version_hpp)
 
 forti_pihole_exe = executable('forti-pihole', 'main.cpp',
                                 dependencies : fph_core_dep,
                                 implicit_include_directories : false,
                                 install : true)
 
-# The optional runtime service (src/daemon/meson.build defines forti_piholed_exe and fphd_core_dep).
-subdir('daemon')
+
+# forti-piholed: the scheduler and webhook receiver (fphd_core) around the same sync the CLI runs.
+forti_piholed_exe = executable('forti-piholed', 'daemon/main.cpp', fphd_version_hpp,
+                               dependencies : [fphd_core_dep, fph_core_dep],
+                               implicit_include_directories : false,
+                               install : true)

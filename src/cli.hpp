@@ -25,11 +25,21 @@ namespace fph {
 
     struct Config;
 
+    struct WritePermits;
+    struct PiholeConfig;
+    class PiholeApi;
+
     struct Environment {
         Home home = Home::from_env();
-        // Builds the gateway once the configuration is known (production: engine_gateway).
-        std::function<std::unique_ptr<Gateway>(const Config&)> gateway;
+        // Builds the gateway once the configuration is known (production: engine_gateway with the
+        // guard transport sharing `permits`).
+        std::function<std::unique_ptr<Gateway>(const Config&, std::shared_ptr<WritePermits> permits)> gateway;
+        // Pi-hole with the stored password (production: pihole_connect), and with a given one (setup).
+        std::function<std::unique_ptr<PiholeApi>(const Config&)> pihole;
+        std::function<std::unique_ptr<PiholeApi>(const PiholeConfig&, const std::string& password)> pihole_with_password;
         std::function<std::int64_t()> clock;
+        std::function<void(int seconds)> sleep;
+        std::istream* in = nullptr;
         std::ostream* out = nullptr;
         std::ostream* err = nullptr;
     };

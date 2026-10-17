@@ -6,6 +6,16 @@
 #include "daemon.hpp"
 #include "setup.hpp"
 
+#include <config.hpp>
+#include <gateway.hpp>
+#include <guard.hpp>
+#include <pihole_link.hpp>
+#include <state.hpp>
+#include <sync.hpp>
+
+#include <chrono>
+#include <thread>
+
 #include <forti_piholed_version.hpp>
 
 #include <cerrno>
@@ -95,9 +105,55 @@ Plain HTTP only: the token crosses the network in cleartext, so bind to the mana
         return out;
     }
 
-    // Until the reconcile is wired in: a run that does nothing and writes nothing, so the scheduler,
-    // receiver and state can be exercised end to end.
-    fph::daemon::RunResult stub_reconcile(fph::daemon::RunReason) { return {}; }
+    // One reconcile: exactly what `forti-pihole sync` does, under the same run lock, so a manual run
+    // and the daemon never overlap. The configuration is read fresh each time (an edited config.json
+    // applies at the next run). Pausing is the daemon's job: it never calls this while paused.
+    fph::daemon::RunResult real_reconcile(fph::daemon::RunReason, const std::string& profile) {
+        fph::daemon::RunResult result;
+        try {
+            auto home = fph::Home::from_env();
+            auto config = fph::load_config(home.config());
+            if (!profile.empty()) config.profile = profile;
+            if (!config.enabled) return result;   // installed but not enabled: nothing to do
+            auto permits = std::make_shared<fph::WritePermits>();
+            auto gateway = fph::engine_gateway(config, permits);
+            std::unique_ptr<fph::PiholeApi> pihole;
+            auto clock = [] {
+                return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+            };
+            fph::SyncContext ctx{config, *gateway, permits,
+                                 [&]() -> fph::PiholeApi* {
+                                     if (config.pihole.url.empty()) return nullptr;
+                                     if (!pihole) {
+                                         auto store = forti::engine::default_secret_store(forti::engine::Paths::from_env());
+                                         pihole = fph::pihole_connect(config, *store);
+                                     }
+                                     return pihole.get();
+                                 },
+                                 home, clock, [](int seconds) { std::this_thread::sleep_for(std::chrono::seconds(seconds)); }};
+            fph::RunLock lock(home.lock());
+            auto state = fph::load_state(home.state());
+            fph::SyncOptions options;
+            options.apply = true;
+            options.max_changes = config.max_changes;
+            auto r = fph::run_sync(ctx, state, options);
+            fph::save_state(home.state(), state);
+            for (const auto& w: r.written) result.written.push_back({w.value("resource", std::string()), w.value("name", std::string())});
+            if (r.status == "failed") {
+                result.ok = false;
+                for (const auto& stage: r.stages)
+                    if (stage.status == "failed") result.error += (result.error.empty() ? "" : "; ") + stage.stage + ": " + stage.detail;
+            }
+            if (!r.pihole_error.empty()) {
+                result.ok = false;
+                result.error += (result.error.empty() ? "" : "; ") + std::string("pihole: ") + r.pihole_error;
+            }
+        } catch (const std::exception& e) {
+            result.ok = false;
+            result.error = e.what();
+        }
+        return result;
+    }
 
     int check_config(const fph::daemon::Resolved& resolved, const fph::daemon::Environment& environment) {
         const auto& c = resolved.settings.config;
@@ -165,7 +221,7 @@ int main(int argc, char** argv) {
         fph::daemon::DaemonOptions options;
         options.settings = resolved.settings;
         options.files = {fph::daemon::pihole_dir(environment.paths)};
-        options.reconcile = stub_reconcile;
+        options.reconcile = [profile = resolved.profile](fph::daemon::RunReason reason) { return real_reconcile(reason, profile); };
         options.reload = [environment, &log] {
             auto fresh = fph::daemon::resolve_settings(environment);
             for (const auto& warning: fresh.warnings) log.warn("config.warning", {{"detail", warning}});

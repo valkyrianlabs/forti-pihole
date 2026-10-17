@@ -75,6 +75,14 @@ namespace fph {
             if (mac.is_string()) state.retire_now.insert(mac.get<std::string>());
         state.last_apply = num(root, "last_apply");
         state.last_plan = str(root, "last_plan");
+        for (const auto& [mac, item]: root.value("adoptions", json::object()).items()) {
+            Adoption a;
+            for (const auto& o: item.value("objects", json::array()))
+                if (o.is_string()) a.objects.insert(o.get<std::string>());
+            a.reservation = item.value("reservation", false);
+            a.at = num(item, "at");
+            state.adoptions.emplace(mac, std::move(a));
+        }
         if (auto it = root.find("pending"); it != root.end() && it->is_object()) {
             Pending pending;
             pending.plan_id = str(*it, "plan_id");
@@ -117,6 +125,9 @@ namespace fph {
                                        {"reasons", c.reasons}, {"found_at", c.found_at}});
         json out = {{"version", 1}, {"devices", devices_json}, {"pins", pins_json}, {"candidates", candidates_json},
                     {"dismissed", dismissed}, {"retire_now", retire_now}, {"last_apply", last_apply}, {"last_plan", last_plan}};
+        json adoptions_json = json::object();
+        for (const auto& [mac, a]: adoptions) adoptions_json[mac] = {{"objects", a.objects}, {"reservation", a.reservation}, {"at", a.at}};
+        out["adoptions"] = adoptions_json;
         if (pending) {
             json written = json::object();
             for (const auto& [mac, entry]: pending->written) written[mac] = {{"object", entry.first}, {"group", entry.second}};

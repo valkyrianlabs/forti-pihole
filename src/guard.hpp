@@ -37,14 +37,17 @@ namespace fph {
     //   reservations      (server id, entry id) pairs: managed entries, or an adopted one
     //   address_objects   administrator host objects explicitly adopted to follow a moved device
     //   revoke_ips        leases that may be revoked (monitor/system/dhcp/revoke)
+    //   automation        the event webhook's trigger, action and stitch (<prefix>* names, marker in the
+    //                     description), only inside `forti-pihole events install|remove`
     struct WritePermits {
         std::set<std::uint64_t> dhcp_servers;
         std::set<std::pair<std::uint64_t, std::uint64_t>> reservations;
         std::set<std::string> address_objects;
         std::set<std::string> revoke_ips;
+        bool automation = false;
 
         [[nodiscard]] bool empty() const {
-            return dhcp_servers.empty() && reservations.empty() && address_objects.empty() && revoke_ips.empty();
+            return dhcp_servers.empty() && reservations.empty() && address_objects.empty() && revoke_ips.empty() && !automation;
         }
     };
 

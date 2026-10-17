@@ -11,7 +11,9 @@
 
 #include <cli.hpp>
 #include <config.hpp>
+#include <guard.hpp>
 #include <inventory.hpp>
+#include <pihole_link.hpp>
 
 #include <gtest/gtest.h>
 
@@ -109,10 +111,13 @@ namespace fph::test {
         FakeGateway fake;
         std::int64_t now = 1'800'000'100;
         std::ostringstream out, err;
+        std::istringstream in;
 
         Cli() {
             populate(fake);
-            write_private(home.path / "pihole" / "config.json", test_config().to_json().dump(2));
+            auto config = test_config().to_json();
+            config["enabled"] = true;   // these tests exercise sync; the shipped default is off
+            write_private(home.path / "pihole" / "config.json", config.dump(2));
         }
 
         int operator()(std::vector<std::string> args) {
@@ -120,7 +125,13 @@ namespace fph::test {
             err.str({});
             Environment env;
             env.home = {home.path / "pihole"};
-            env.gateway = [this](const Config&) { return std::make_unique<Forwarder>(fake); };
+            env.gateway = [this](const Config&, std::shared_ptr<WritePermits>) { return std::make_unique<Forwarder>(fake); };
+            env.pihole = [](const Config&) -> std::unique_ptr<PiholeApi> { throw PiholeLinkError("no Pi-hole in this test"); };
+            env.pihole_with_password = [](const PiholeConfig&, const std::string&) -> std::unique_ptr<PiholeApi> {
+                throw PiholeLinkError("no Pi-hole in this test");
+            };
+            env.sleep = [](int) {};
+            env.in = &in;
             env.clock = [this] { return now; };
             env.out = &out;
             env.err = &err;

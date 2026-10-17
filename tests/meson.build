@@ -11,6 +11,7 @@ if gtest_dep.found()
                             'unit/test_classify.cpp',
                             'unit/test_reconcile.cpp',
                             'unit/test_cli.cpp',
+                            'unit/test_cli_sync.cpp',
                             'unit/test_references.cpp',
                             'unit/test_operation.cpp',
                             'unit/test_pihole_sync.cpp',

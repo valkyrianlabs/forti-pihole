@@ -19,7 +19,3 @@ fphd_core = static_library('forti-piholed-core',
                            implicit_include_directories : false)
 fphd_core_dep = declare_dependency(include_directories : fphd_inc, link_with : fphd_core, dependencies : fphd_deps)
 
-forti_piholed_exe = executable('forti-piholed', 'main.cpp', fphd_version_hpp,
-                               dependencies : fphd_core_dep,
-                               implicit_include_directories : false,
-                               install : true)
