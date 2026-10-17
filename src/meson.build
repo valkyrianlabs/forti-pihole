@@ -23,7 +23,7 @@ subdir('pihole')
 # Everything but main(): the executable and the unit tests link the same library.
 fph_core = static_library('forti-pihole-core',
                           'mac.cpp', 'config.cpp', 'inventory.cpp', 'address_match.cpp', 'classify.cpp', 'reassociate.cpp',
-                          'connectivity.cpp', 'references.cpp', 'operation.cpp', 'pihole_sync.cpp', 'slicing.cpp', 'migrate.cpp', 'pihole_link.cpp', 'guard.cpp', 'reconcile.cpp', 'state.cpp', 'report.cpp', 'gateway.cpp', 'cli.cpp',
+                          'connectivity.cpp', 'references.cpp', 'operation.cpp', 'pihole_sync.cpp', 'slicing.cpp', 'migrate.cpp', 'pihole_link.cpp', 'executors.cpp', 'guard.cpp', 'reconcile.cpp', 'state.cpp', 'report.cpp', 'gateway.cpp', 'cli.cpp',
                           version_hpp,
                           include_directories : fph_inc,
                           dependencies : [forti_engine, fph_alloc_dep, fph_pihole_dep],

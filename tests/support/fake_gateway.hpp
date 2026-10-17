@@ -12,7 +12,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <format>
+#include <functional>
 #include <map>
 #include <set>
 #include <string>
@@ -102,6 +104,10 @@ namespace fph::test {
             return {{"ok", false}, {"error", {{"code", "unknown_resource"}, {"message", "fake: " + resource}}}};
         }
 
+        // Called after a lease revoke with the revoked IP: tests simulate the device renewing.
+        std::function<void(const std::string& ip)> on_revoke;
+        bool approve_everything = false;
+
         json plan(const json& request) override {
             plans.push_back(request["operations"]);
             auto id = std::format("20370101-000000-{:06x}", next_plan++);
@@ -118,9 +124,20 @@ namespace fph::test {
                 return {{"ok", false}, {"error", {{"code", "approval_required"}, {"message", "approve it"}}}};
             if (std::ranges::find(applied, id) != applied.end())
                 return {{"ok", false}, {"error", {{"code", "usage"}, {"message", "already applied"}}}};
-            for (const auto& op: it->second) execute(op);
+            json record = json::array();
+            json inverse = json::array();
+            for (const auto& op: it->second) {
+                auto [rec, undo] = execute(op);
+                record.push_back(rec);
+                if (!undo.is_null()) inverse.insert(inverse.begin(), undo);
+            }
             applied.push_back(id);
-            return {{"ok", true}, {"data", {{"status", "applied"}, {"rollback", {{"plan_id", id + "-rb"}}}}}};
+            json data = {{"status", "applied"}, {"operations", record}};
+            if (!inverse.empty()) {
+                stored[id + "-rb"] = inverse;
+                data["rollback"] = {{"plan_id", id + "-rb"}};
+            }
+            return {{"ok", true}, {"data", data}};
         }
 
         json discover(const json&) override {
@@ -146,20 +163,89 @@ namespace fph::test {
             return out;
         }
 
+        json& reservations(std::uint64_t server) {
+            for (auto& d: dhcp)
+                if (d["id"] == server) {
+                    if (!d.contains("reserved-address")) d["reserved-address"] = json::array();
+                    return d["reserved-address"];
+                }
+            throw std::runtime_error("fake: no DHCP server");
+        }
+
     private:
-        void execute(const json& op) {
+        static std::string text(const json& j) { return j.is_string() ? j.get<std::string>() : j.dump(); }
+
+        // Executes one engine operation; returns the record entry and the inverse operation (or null).
+        std::pair<json, json> execute(const json& op) {
             auto kind = op["op"].get<std::string>();
             auto resource = op["resource"].get<std::string>();
+            json rec = {{"op", kind}, {"resource", resource}, {"status", "verified"}};
+            if (resource == "monitor/system/dhcp/revoke") {
+                for (const auto& ip: op["body"]["ip"]) {
+                    json kept = json::array();
+                    for (const auto& l: leases)
+                        if (l["ip"] != ip) kept.push_back(l);
+                    leases = kept;
+                    if (on_revoke) on_revoke(ip.get<std::string>());
+                }
+                rec["status"] = "applied_unverified";
+                return {rec, json()};
+            }
+            if (resource == "system.dhcp/server") {
+                auto server = static_cast<std::uint64_t>(std::stoull(text(op["parent"])));
+                auto& list = reservations(server);
+                rec["parent"] = text(op["parent"]);
+                rec["child"] = "reserved-address";
+                if (kind == "create") {
+                    auto entry = op["object"];
+                    std::uint64_t next = 1;
+                    for (const auto& r: list) next = std::max<std::uint64_t>(next, r["id"].get<std::uint64_t>() + 1);
+                    if (!entry.contains("id") || entry["id"] == 0) entry["id"] = next;
+                    if (!entry.contains("type")) entry["type"] = "mac";
+                    list.push_back(entry);
+                    rec["key"] = std::to_string(entry["id"].get<std::uint64_t>());
+                    return {rec, json{{"op", "delete"}, {"resource", resource}, {"parent", rec["parent"]}, {"child", "reserved-address"}, {"key", rec["key"]}}};
+                }
+                auto key = static_cast<std::uint64_t>(std::stoull(text(op["key"])));
+                rec["key"] = std::to_string(key);
+                for (auto it = list.begin(); it != list.end(); ++it) {
+                    if ((*it)["id"] != key) continue;
+                    if (kind == "update") {
+                        json before = json::object();
+                        for (auto s = op["set"].begin(); s != op["set"].end(); ++s) {
+                            before[s.key()] = it->contains(s.key()) ? (*it)[s.key()] : json("");
+                            (*it)[s.key()] = s.value();
+                        }
+                        return {rec, json{{"op", "update"}, {"resource", resource}, {"parent", rec["parent"]}, {"child", "reserved-address"},
+                                          {"key", rec["key"]}, {"set", before}}};
+                    }
+                    json removed = *it;
+                    list.erase(it);
+                    return {rec, json{{"op", "create"}, {"resource", resource}, {"parent", rec["parent"]}, {"child", "reserved-address"}, {"object", removed}}};
+                }
+                throw std::runtime_error("fake: no such reservation");
+            }
             auto& table = resource == "firewall/addrgrp" ? addrgrps : addresses;
             if (kind == "create") {
                 auto object = op["object"];
                 table[object["name"]] = object;
-            } else if (kind == "update") {
-                auto& object = table.at(op["key"]);
-                for (auto s = op["set"].begin(); s != op["set"].end(); ++s) object[s.key()] = s.value();
-            } else if (kind == "delete") {
-                table.erase(op["key"]);
+                rec["key"] = object["name"];
+                return {rec, json{{"op", "delete"}, {"resource", resource}, {"key", object["name"]}}};
             }
+            if (kind == "update") {
+                auto& object = table.at(op["key"]);
+                json before = json::object();
+                for (auto s = op["set"].begin(); s != op["set"].end(); ++s) {
+                    before[s.key()] = object.contains(s.key()) ? object[s.key()] : json("");
+                    object[s.key()] = s.value();
+                }
+                rec["key"] = op["key"];
+                return {rec, json{{"op", "update"}, {"resource", resource}, {"key", op["key"]}, {"set", before}}};
+            }
+            json removed = table.at(op["key"]);
+            table.erase(op["key"]);
+            rec["key"] = op["key"];
+            return {rec, json{{"op", "create"}, {"resource", resource}, {"object", removed}}};
         }
     };
 
