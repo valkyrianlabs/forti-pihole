@@ -12,10 +12,10 @@ namespace fph {
         bool covers(const Snapshot& snapshot, std::string_view name, const Endpoint& endpoint, int depth) {
             // FortiOS rejects group loops; the depth limit only protects against a corrupt read.
             if (depth > 16) return false;
-            if (const Group* group = snapshot.group(name)) {
-                bool in = std::ranges::any_of(group->members, [&](const auto& m) { return covers(snapshot, m, endpoint, depth + 1); });
-                if (in && group->exclude)
-                    in = !std::ranges::any_of(group->exclude_members,
+            if (const AddrGroup* ag = snapshot.addrgrp(name)) {
+                bool in = std::ranges::any_of(ag->members, [&](const auto& m) { return covers(snapshot, m, endpoint, depth + 1); });
+                if (in && ag->exclude)
+                    in = !std::ranges::any_of(ag->exclude_members,
                                               [&](const auto& m) { return covers(snapshot, m, endpoint, depth + 1); });
                 return in;
             }

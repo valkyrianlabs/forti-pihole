@@ -56,12 +56,12 @@ namespace fph {
                 auto name = object.value("name", std::string());
                 if (!name.starts_with(config.prefix)) throw GuardViolation(std::format("{}: {} lacks the prefix {}", where, name, config.prefix));
                 if (!has_marker(object)) throw GuardViolation(std::format("{}: {} is created without the ownership marker", where, name));
-                if (group ? snapshot.group(name) != nullptr : snapshot.address(name) != nullptr)
+                if (group ? snapshot.addrgrp(name) != nullptr : snapshot.address(name) != nullptr)
                     throw GuardViolation(std::format("{}: {} already exists", where, name));
             } else if (kind == "update" || kind == "delete") {
                 auto key = op.value("key", std::string());
                 if (!key.starts_with(config.prefix)) throw GuardViolation(std::format("{}: {} lacks the prefix {}", where, key, config.prefix));
-                bool managed = group ? (snapshot.group(key) && snapshot.group(key)->managed())
+                bool managed = group ? (snapshot.addrgrp(key) && snapshot.addrgrp(key)->managed())
                                      : (snapshot.address(key) && snapshot.address(key)->managed());
                 if (!managed) throw GuardViolation(std::format("{}: {} does not carry the ownership marker", where, key));
                 if (kind == "update") {
@@ -96,7 +96,7 @@ namespace fph {
             }
             if (path.starts_with(collection + "/")) {
                 auto rest = path.substr(collection.size() + 1);
-                // Exactly one more segment: the object. Child-table paths are not allowed.
+                // Exactly one more group: the object. Child-table paths are not allowed.
                 if (rest.find('/') != std::string_view::npos) return std::format("nested path {}", path);
                 auto name = percent_decode(rest);
                 if (!name.starts_with(prefix)) return std::format("{} of \"{}\" (not {}*)", fortiapi::to_string(method), name, prefix);

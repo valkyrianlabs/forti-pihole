@@ -60,8 +60,8 @@ namespace fph {
                 if (old_mac == device.mac) continue;
                 const Device* old_now = snapshot.device(old_mac);
                 if (old_now && old_now->online) continue;   // both alive: two devices, not one
-                bool has_segment = !record.written_segment.empty() || state.pins.contains(old_mac);
-                if (!has_segment) continue;
+                bool has_group = !record.written_group.empty() || state.pins.contains(old_mac);
+                if (!has_group) continue;
                 if (!same(record.hostname, device.hostname)) continue;
 
                 Candidate candidate;

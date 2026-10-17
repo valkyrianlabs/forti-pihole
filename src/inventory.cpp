@@ -66,7 +66,7 @@ namespace fph {
     }
 
     bool Address::managed() const { return comment.find(marker) != std::string::npos; }
-    bool Group::managed() const { return comment.find(marker) != std::string::npos; }
+    bool AddrGroup::managed() const { return comment.find(marker) != std::string::npos; }
 
     const Device* Snapshot::device(std::string_view mac) const {
         for (const auto& d: devices)
@@ -79,9 +79,9 @@ namespace fph {
         return it == addresses.end() ? nullptr : &it->second;
     }
 
-    const Group* Snapshot::group(std::string_view name) const {
-        auto it = groups.find(std::string(name));
-        return it == groups.end() ? nullptr : &it->second;
+    const AddrGroup* Snapshot::addrgrp(std::string_view name) const {
+        auto it = addrgrps.find(std::string(name));
+        return it == addrgrps.end() ? nullptr : &it->second;
     }
 
     Snapshot build_snapshot(const RawReads& raw, const Config& config, std::int64_t now) {
@@ -165,15 +165,15 @@ namespace fph {
             snapshot.addresses.emplace(address.name, std::move(address));
         }
 
-        for (const auto& item: array_or_empty(raw.groups)) {
-            Group group;
-            group.name = str(item, "name");
-            if (group.name.empty()) continue;
-            group.comment = str(item, "comment");
-            group.members = names(item, "member");
-            group.exclude = flag(item, "exclude");
-            group.exclude_members = names(item, "exclude-member");
-            snapshot.groups.emplace(group.name, std::move(group));
+        for (const auto& item: array_or_empty(raw.addrgrps)) {
+            AddrGroup ag;
+            ag.name = str(item, "name");
+            if (ag.name.empty()) continue;
+            ag.comment = str(item, "comment");
+            ag.members = names(item, "member");
+            ag.exclude = flag(item, "exclude");
+            ag.exclude_members = names(item, "exclude-member");
+            snapshot.addrgrps.emplace(ag.name, std::move(ag));
         }
 
         for (const auto& item: array_or_empty(raw.policies)) {
@@ -252,7 +252,7 @@ namespace fph {
         raw.addresses = read_all(gateway, with_fields("firewall/address",
                 {"name", "type", "sub-type", "comment", "macaddr", "subnet", "start-ip", "end-ip", "hw-vendor", "hw-model",
                  "os", "sw-version"}));
-        raw.groups = read_all(gateway, with_fields("firewall/addrgrp", {"name", "comment", "member", "exclude", "exclude-member"}));
+        raw.addrgrps = read_all(gateway, with_fields("firewall/addrgrp", {"name", "comment", "member", "exclude", "exclude-member"}));
         raw.policies = read_all(gateway, with_fields("firewall/policy",
                 {"policyid", "name", "status", "action", "srcintf", "dstintf", "srcaddr", "dstaddr", "service",
                  "srcaddr-negate", "dstaddr-negate", "service-negate", "internet-service", "users", "groups"}));

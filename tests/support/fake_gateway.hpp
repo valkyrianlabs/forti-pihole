@@ -33,7 +33,7 @@ namespace fph::test {
         return {{"name", name}, {"type", "mac"}, {"sub-type", "sdn"}, {"comment", comment}, {"macaddr", json::array({{{"macaddr", mac}}})}};
     }
 
-    inline json group(const std::string& name, std::vector<std::string> members, const std::string& comment = "") {
+    inline json addrgrp(const std::string& name, std::vector<std::string> members, const std::string& comment = "") {
         json m = json::array();
         for (const auto& n: members) m.push_back({{"name", n}});
         return {{"name", name}, {"member", m}, {"comment", comment}, {"exclude", "disable"}, {"exclude-member", json::array()}};
@@ -45,7 +45,7 @@ namespace fph::test {
         json devices = json::array();
         json leases = json::array();
         std::map<std::string, json> addresses;
-        std::map<std::string, json> groups;
+        std::map<std::string, json> addrgrps;
         json policies = json::array();
         json services = json::parse(R"([
             {"name": "ALL", "protocol": "IP"},
@@ -80,7 +80,7 @@ namespace fph::test {
             if (resource == "monitor/user/device/query") return list(devices);
             if (resource == "monitor/system/dhcp") return list(leases);
             if (resource == "firewall/address") return list(values(addresses));
-            if (resource == "firewall/addrgrp") return list(values(groups));
+            if (resource == "firewall/addrgrp") return list(values(addrgrps));
             if (resource == "firewall/policy") return list(policies);
             if (resource == "firewall.service/custom") return list(services);
             if (resource == "firewall.service/group") return list(service_groups);
@@ -126,18 +126,18 @@ namespace fph::test {
 
         // GUI-style edits by the "operator".
         void move_member(const std::string& from, const std::string& to, const std::string& member) {
-            auto& f = groups.at(from)["member"];
+            auto& f = addrgrps.at(from)["member"];
             for (auto i = f.begin(); i != f.end(); ++i)
                 if ((*i)["name"] == member) {
                     f.erase(i);
                     break;
                 }
-            groups.at(to)["member"].push_back({{"name", member}});
+            addrgrps.at(to)["member"].push_back({{"name", member}});
         }
 
         [[nodiscard]] std::vector<std::string> members(const std::string& name) const {
             std::vector<std::string> out;
-            if (auto it = groups.find(name); it != groups.end())
+            if (auto it = addrgrps.find(name); it != addrgrps.end())
                 for (const auto& m: it->second["member"]) out.push_back(m["name"]);
             std::ranges::sort(out);
             return out;
@@ -147,7 +147,7 @@ namespace fph::test {
         void execute(const json& op) {
             auto kind = op["op"].get<std::string>();
             auto resource = op["resource"].get<std::string>();
-            auto& table = resource == "firewall/addrgrp" ? groups : addresses;
+            auto& table = resource == "firewall/addrgrp" ? addrgrps : addresses;
             if (kind == "create") {
                 auto object = op["object"];
                 table[object["name"]] = object;

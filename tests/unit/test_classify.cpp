@@ -1,4 +1,4 @@
-// Classification precedence, ambiguity, privileged segments, GUI overrides, adoption, overlaps and
+// Classification precedence, ambiguity, privileged groups, GUI overrides, adoption, overlaps and
 // reassociation candidates.
 
 #include "fixture.hpp"
@@ -21,14 +21,14 @@ TEST(Classify, RulesAndDefault) {
     FakeGateway fake;
     populate(fake);
     auto c = run_classify(fake, test_config());
-    EXPECT_EQ(c.decision(plug1)->segment, "iot_untrusted");
+    EXPECT_EQ(c.decision(plug1)->group, "iot_untrusted");
     EXPECT_EQ(c.decision(plug1)->source, "rule");
     EXPECT_EQ(c.decision(plug1)->detail, "plugs");
-    EXPECT_EQ(c.decision(stick)->segment, "tvs");
-    EXPECT_EQ(c.decision(mystery)->segment, "default");
+    EXPECT_EQ(c.decision(stick)->group, "tvs");
+    EXPECT_EQ(c.decision(mystery)->group, "default");
     EXPECT_EQ(c.decision(mystery)->source, "default");
-    // Nothing matches the phone: it never lands in the privileged segment by inference.
-    EXPECT_EQ(c.decision(phone)->segment, "default");
+    // Nothing matches the phone: it never lands in the privileged group by inference.
+    EXPECT_EQ(c.decision(phone)->group, "default");
     EXPECT_TRUE(c.decision(plug1)->create_member);
     EXPECT_TRUE(c.decision(plug1)->member.starts_with("fp-dev-hs103-"));
 }
@@ -37,9 +37,9 @@ TEST(Classify, TiesBetweenSegmentsAreAmbiguous) {
     FakeGateway fake;
     populate(fake);
     auto j = test_config().to_json();
-    j["rules"].push_back({{"name", "amazon-iot"}, {"segment", "iot_untrusted"}, {"priority", 100}, {"match", {{"vendor", "Amazon"}}}});
+    j["rules"].push_back({{"name", "amazon-iot"}, {"group", "iot_untrusted"}, {"priority", 100}, {"match", {{"vendor", "Amazon"}}}});
     auto c = run_classify(fake, Config::from_json(j));
-    EXPECT_EQ(c.decision(stick)->segment, "default");
+    EXPECT_EQ(c.decision(stick)->group, "default");
     EXPECT_EQ(c.decision(stick)->source, "ambiguous");
     EXPECT_EQ(c.decision(stick)->matches.size(), 2u);
 }
@@ -48,9 +48,9 @@ TEST(Classify, HigherPriorityWins) {
     FakeGateway fake;
     populate(fake);
     auto j = test_config().to_json();
-    j["rules"].push_back({{"name", "amazon-iot"}, {"segment", "iot_untrusted"}, {"priority", 300}, {"match", {{"vendor", "Amazon"}}}});
+    j["rules"].push_back({{"name", "amazon-iot"}, {"group", "iot_untrusted"}, {"priority", 300}, {"match", {{"vendor", "Amazon"}}}});
     auto c = run_classify(fake, Config::from_json(j));
-    EXPECT_EQ(c.decision(stick)->segment, "iot_untrusted");
+    EXPECT_EQ(c.decision(stick)->group, "iot_untrusted");
 }
 
 TEST(Classify, NativeRuleObjects) {
@@ -58,15 +58,15 @@ TEST(Classify, NativeRuleObjects) {
     populate(fake);
     fake.addresses["fp-rule-tvs-amazon"] = {{"name", "fp-rule-tvs-amazon"}, {"type", "dynamic"},
                                                {"sub-type", "device-identification"}, {"hw-vendor", "Amazon"}, {"comment", ""}};
-    // A native rule naming a privileged segment is ignored with a warning.
+    // A native rule naming a privileged group is ignored with a warning.
     fake.addresses["fp-rule-owner-apple"] = {{"name", "fp-rule-owner-apple"}, {"type", "dynamic"},
                                                  {"sub-type", "device-identification"}, {"hw-vendor", "Apple"}, {"comment", ""}};
     auto j = test_config().to_json();
     j["rules"] = json::array();
     auto c = run_classify(fake, Config::from_json(j));
-    EXPECT_EQ(c.decision(stick)->segment, "tvs");
+    EXPECT_EQ(c.decision(stick)->group, "tvs");
     EXPECT_TRUE(c.decision(stick)->matches.front().native);
-    EXPECT_EQ(c.decision(phone)->segment, "default");
+    EXPECT_EQ(c.decision(phone)->group, "default");
     EXPECT_TRUE(std::ranges::any_of(c.warnings, [](const auto& w) { return w.find("privileged") != std::string::npos; }));
 }
 
@@ -78,14 +78,14 @@ TEST(Classify, ExplicitBeatsRules) {
     state.pins[plug1] = {"tvs", "assign", now};
     state.pins[phone] = {"owner", "assign", now};
     auto c = run_classify(fake, config, state);
-    EXPECT_EQ(c.decision(plug1)->segment, "tvs");
+    EXPECT_EQ(c.decision(plug1)->group, "tvs");
     EXPECT_EQ(c.decision(plug1)->source, "pin");
-    EXPECT_EQ(c.decision(phone)->segment, "owner");   // privileged, but explicit
+    EXPECT_EQ(c.decision(phone)->group, "owner");   // privileged, but explicit
 
     auto j = config.to_json();
     j["assignments"] = {{plug1, "default"}};
     c = run_classify(fake, Config::from_json(j), state);
-    EXPECT_EQ(c.decision(plug1)->segment, "default");
+    EXPECT_EQ(c.decision(plug1)->group, "default");
     EXPECT_EQ(c.decision(plug1)->source, "assignment");
 }
 
@@ -119,13 +119,13 @@ TEST(Classify, GuiMoveBecomesAPin) {
     auto config = test_config();
     auto marker_comment = std::string(marker) + ": x";
     fake.addresses["fp-dev-hs103-005301"] = mac_address("fp-dev-hs103-005301", plug1, marker_comment);
-    fake.groups["fp-seg-iot_untrusted"] = group("fp-seg-iot_untrusted", {}, marker_comment);
-    fake.groups["fp-seg-tvs"] = group("fp-seg-tvs", {"fp-dev-hs103-005301"}, marker_comment);
+    fake.addrgrps["fp-grp-iot_untrusted"] = addrgrp("fp-grp-iot_untrusted", {}, marker_comment);
+    fake.addrgrps["fp-grp-tvs"] = addrgrp("fp-grp-tvs", {"fp-dev-hs103-005301"}, marker_comment);
     State state;
     state.devices[plug1].object = "fp-dev-hs103-005301";
-    state.devices[plug1].written_segment = "iot_untrusted";   // where the companion put it
+    state.devices[plug1].written_group = "iot_untrusted";   // where the companion put it
     auto c = run_classify(fake, config, state);
-    EXPECT_EQ(c.decision(plug1)->segment, "tvs");
+    EXPECT_EQ(c.decision(plug1)->group, "tvs");
     EXPECT_EQ(c.decision(plug1)->source, "pin");
     ASSERT_TRUE(c.new_pins.contains(plug1));
     EXPECT_EQ(c.new_pins.at(plug1).source, "gui");
@@ -136,12 +136,12 @@ TEST(Classify, RemovedFromEveryGroupGoesToDefault) {
     populate(fake);
     auto marker_comment = std::string(marker) + ": x";
     fake.addresses["fp-dev-hs103-005301"] = mac_address("fp-dev-hs103-005301", plug1, marker_comment);
-    fake.groups["fp-seg-iot_untrusted"] = group("fp-seg-iot_untrusted", {}, marker_comment);
+    fake.addrgrps["fp-grp-iot_untrusted"] = addrgrp("fp-grp-iot_untrusted", {}, marker_comment);
     State state;
     state.devices[plug1].object = "fp-dev-hs103-005301";
-    state.devices[plug1].written_segment = "iot_untrusted";
+    state.devices[plug1].written_group = "iot_untrusted";
     auto c = run_classify(fake, test_config(), state);
-    EXPECT_EQ(c.decision(plug1)->segment, "default");
+    EXPECT_EQ(c.decision(plug1)->group, "default");
 }
 
 TEST(Classify, DeletingTheObjectResetsAGuiPin) {
@@ -149,11 +149,11 @@ TEST(Classify, DeletingTheObjectResetsAGuiPin) {
     populate(fake);
     State state;
     state.devices[plug1].object = "fp-dev-hs103-005301";   // gone from the device
-    state.devices[plug1].written_segment = "tvs";
+    state.devices[plug1].written_group = "tvs";
     state.pins[plug1] = {"tvs", "gui", now};
     auto c = run_classify(fake, test_config(), state);
     EXPECT_TRUE(c.cleared_pins.contains(plug1));
-    EXPECT_EQ(c.decision(plug1)->segment, "iot_untrusted");
+    EXPECT_EQ(c.decision(plug1)->group, "iot_untrusted");
 }
 
 TEST(Classify, OverlapsAreReportedWithTheWinner) {
@@ -161,22 +161,22 @@ TEST(Classify, OverlapsAreReportedWithTheWinner) {
     populate(fake);
     auto marker_comment = std::string(marker) + ": x";
     fake.addresses["Stick"] = mac_address("Stick", stick);
-    fake.groups["fp-seg-tvs"] = group("fp-seg-tvs", {"Stick"}, marker_comment);
-    fake.groups["fp-seg-iot_untrusted"] = group("fp-seg-iot_untrusted", {"Stick"}, marker_comment);
+    fake.addrgrps["fp-grp-tvs"] = addrgrp("fp-grp-tvs", {"Stick"}, marker_comment);
+    fake.addrgrps["fp-grp-iot_untrusted"] = addrgrp("fp-grp-iot_untrusted", {"Stick"}, marker_comment);
     auto c = run_classify(fake, test_config());
     ASSERT_EQ(c.overlaps.size(), 1u);
     EXPECT_EQ(c.overlaps[0].mac, stick);
-    // Both placements are the operator's; the earlier segment in the configuration wins.
+    // Both placements are the operator's; the earlier group in the configuration wins.
     EXPECT_EQ(c.overlaps[0].winner, "tvs");
 }
 
 TEST(Classify, ForeignGroupWithOurNameIsNotManaged) {
     FakeGateway fake;
     populate(fake);
-    fake.groups["fp-seg-tvs"] = group("fp-seg-tvs", {}, "someone else's");
+    fake.addrgrps["fp-grp-tvs"] = addrgrp("fp-grp-tvs", {}, "someone else's");
     auto c = run_classify(fake, test_config());
-    EXPECT_TRUE(c.unusable_segments.contains("tvs"));
-    EXPECT_EQ(c.decision(stick)->segment, "default");
+    EXPECT_TRUE(c.unusable_groups.contains("tvs"));
+    EXPECT_EQ(c.decision(stick)->group, "default");
 }
 
 TEST(Classify, GlobMatching) {
@@ -193,7 +193,7 @@ TEST(Reassociate, DistinctiveHostnameOnly) {
     populate(fake);
     auto config = test_config();
     State state;
-    // The phone used to be 02:00:5e:00:53:44 (offline now), pinned to the privileged segment.
+    // The phone used to be 02:00:5e:00:53:44 (offline now), pinned to the privileged group.
     state.devices["02:00:5e:00:53:44"] = {"Alexs-Phone", "Alexs-Phone", "Apple", "iPhone", "iOS", "26.6", true, 1, 1, "fp-dev-old", "owner"};
     state.pins["02:00:5e:00:53:44"] = {"owner", "assign", 1};
     auto snapshot = collect(fake, config, now);
@@ -203,7 +203,7 @@ TEST(Reassociate, DistinctiveHostnameOnly) {
     EXPECT_EQ(found[0].new_mac, phone);
     EXPECT_GE(found[0].score, candidate_threshold);
     // Never applied on its own: the new MAC is still classified by its own merits.
-    EXPECT_EQ(c.decision(phone)->segment, "default");
+    EXPECT_EQ(c.decision(phone)->group, "default");
 
     // Rejected once, never proposed again.
     state.dismissed.insert(found[0].id);

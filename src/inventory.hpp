@@ -52,7 +52,7 @@ namespace fph {
         [[nodiscard]] bool managed() const;   // carries the ownership marker
     };
 
-    struct Group {
+    struct AddrGroup {
         std::string name, comment;
         std::vector<std::string> members;
         bool exclude = false;
@@ -94,7 +94,7 @@ namespace fph {
     struct Snapshot {
         std::vector<Device> devices;               // managed interfaces only, online or recently seen
         std::map<std::string, Address> addresses;  // every address (names are unique)
-        std::map<std::string, Group> groups;
+        std::map<std::string, AddrGroup> addrgrps;   // firewall address groups
         std::vector<Policy> policies;              // in evaluation order
         std::map<std::string, Service> services;
         std::map<std::string, Interface> interfaces;
@@ -103,7 +103,7 @@ namespace fph {
 
         [[nodiscard]] const Device* device(std::string_view mac) const;
         [[nodiscard]] const Address* address(std::string_view name) const;
-        [[nodiscard]] const Group* group(std::string_view name) const;
+        [[nodiscard]] const AddrGroup* addrgrp(std::string_view name) const;
     };
 
     // Reads everything (several requests; each listing fully paged). Throws GatewayError.
@@ -111,7 +111,7 @@ namespace fph {
 
     // Turns raw engine reads into a Snapshot; separate so tests can feed recorded device JSON.
     struct RawReads {
-        nlohmann::json devices, leases, addresses, groups, policies, services, service_groups, interfaces, dhcp;
+        nlohmann::json devices, leases, addresses, addrgrps, policies, services, service_groups, interfaces, dhcp;
         std::map<std::string, nlohmann::json> dynamic;   // address name -> monitor/firewall/address-dynamic entry
     };
     Snapshot build_snapshot(const RawReads& raw, const Config& config, std::int64_t now);

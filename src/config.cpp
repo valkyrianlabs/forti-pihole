@@ -3,6 +3,7 @@
 #include "mac.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <format>
 #include <fstream>
 #include <regex>
@@ -58,8 +59,8 @@ namespace fph {
             return out;
         }
 
-        // Segment names become part of FortiOS object names (79 characters max for addresses).
-        bool valid_segment_name(std::string_view name) {
+        // DeviceGroup names become part of FortiOS object names (79 characters max for addresses).
+        bool valid_group_name(std::string_view name) {
             static const std::regex pattern("^[a-z0-9_]{1,32}$");
             return std::regex_match(name.begin(), name.end(), pattern);
         }
@@ -99,7 +100,107 @@ namespace fph {
             return match;
         }
 
+        std::optional<std::pair<std::uint32_t, int>> parse_cidr(std::string_view text) {
+            if (!valid_cidr(text)) return std::nullopt;
+            auto slash = text.find('/');
+            std::uint32_t value = 0;
+            std::string_view ip = text.substr(0, slash);
+            for (int i = 0; i < 4; ++i) {
+                auto dot = ip.find('.');
+                value = (value << 8) | static_cast<std::uint32_t>(std::stoi(std::string(ip.substr(0, dot))));
+                ip = dot == std::string_view::npos ? std::string_view() : ip.substr(dot + 1);
+            }
+            int prefix = std::stoi(std::string(text.substr(slash + 1)));
+            return std::pair{value, prefix};
+        }
+
+        bool host_bits_clear(std::uint32_t value, int prefix) {
+            std::uint32_t mask = prefix == 0 ? 0 : ~std::uint32_t(0) << (32 - prefix);
+            return (value & ~mask) == 0;
+        }
+
+        Network::Mode parse_mode(const std::string& text, const std::string& where) {
+            if (text == "subnet") return Network::Mode::subnet;
+            if (text == "slices") return Network::Mode::slices;
+            if (text == "hybrid") return Network::Mode::hybrid;
+            if (text == "observe" || text.empty()) return Network::Mode::observe;
+            throw ConfigError(where + ".mode: subnet, slices, hybrid or observe");
+        }
+
+        void parse_networks(Config& config, const json& root) {
+            auto networks = root.find("networks");
+            if (networks == root.end() || networks->is_null()) return;
+            if (!networks->is_array()) throw ConfigError("config.networks: must be an array");
+            std::set<std::string> seen;
+            for (std::size_t i = 0; i < networks->size(); ++i) {
+                auto where = std::format("config.networks[{}]", i);
+                const auto& item = (*networks)[i];
+                allow_keys(item, {"interface", "mode", "group", "slices", "manage_reservations"}, where);
+                Network network;
+                network.interface = text(item, "interface", where);
+                if (network.interface.empty()) throw ConfigError(where + ".interface: required");
+                if (!seen.insert(network.interface).second) throw ConfigError(where + ".interface: listed twice");
+                network.mode = parse_mode(text(item, "mode", where, "observe"), where);
+                network.group = text(item, "group", where, config.default_group);
+                const DeviceGroup* base = config.group(network.group);
+                if (!base) throw ConfigError(where + ".group: \"" + network.group + "\" is not a listed group");
+                network.manage_reservations = boolean(item, "manage_reservations", where, false);
+                if (auto slices = item.find("slices"); slices != item.end() && !slices->is_null()) {
+                    if (!slices->is_array()) throw ConfigError(where + ".slices: must be an array");
+                    std::vector<std::pair<std::uint32_t, int>> parsed;
+                    for (std::size_t j = 0; j < slices->size(); ++j) {
+                        auto at = std::format("{}.slices[{}]", where, j);
+                        allow_keys((*slices)[j], {"group", "cidr"}, at);
+                        SliceSpec slice{text((*slices)[j], "group", at), text((*slices)[j], "cidr", at)};
+                        if (!config.group(slice.group)) throw ConfigError(at + ".group: \"" + slice.group + "\" is not a listed group");
+                        auto cidr = parse_cidr(slice.cidr);
+                        if (!cidr) throw ConfigError(at + ".cidr: not an IPv4 CIDR");
+                        if (!host_bits_clear(cidr->first, cidr->second))
+                            throw ConfigError(at + ".cidr: " + slice.cidr + " has host bits set");
+                        for (const auto& other: parsed) {
+                            int shorter = std::min(other.second, cidr->second);
+                            std::uint32_t mask = shorter == 0 ? 0 : ~std::uint32_t(0) << (32 - shorter);
+                            if ((other.first & mask) == (cidr->first & mask))
+                                throw ConfigError(at + ".cidr: " + slice.cidr + " overlaps another slice of this network");
+                        }
+                        parsed.push_back(*cidr);
+                        network.slices.push_back(std::move(slice));
+                    }
+                }
+                if (network.mode == Network::Mode::subnet && !network.slices.empty())
+                    throw ConfigError(where + ": subnet mode has no slices (use hybrid)");
+                if (network.mode == Network::Mode::slices && !base->pihole_group.empty())
+                    throw ConfigError(where + ": in slices mode the rest of the subnet stays with Pi-hole's Default group, but group \"" +
+                                      network.group + "\" maps to Pi-hole group \"" + base->pihole_group + "\" (use hybrid)");
+                config.networks.push_back(std::move(network));
+            }
+        }
+
+        void parse_pihole(Config& config, const json& root) {
+            auto pihole = root.find("pihole");
+            if (pihole == root.end() || pihole->is_null()) return;
+            allow_keys(*pihole, {"url", "ca_bundle", "name", "timeout_ms"}, "config.pihole");
+            config.pihole.url = text(*pihole, "url", "config.pihole");
+            if (!config.pihole.url.empty() && !config.pihole.url.starts_with("https://") && !config.pihole.url.starts_with("http://"))
+                throw ConfigError("config.pihole.url: must start with https:// (or http:// on a trusted network)");
+            while (config.pihole.url.ends_with("/")) config.pihole.url.pop_back();
+            config.pihole.ca_bundle = text(*pihole, "ca_bundle", "config.pihole");
+            config.pihole.name = text(*pihole, "name", "config.pihole", config.pihole.name);
+            if (!valid_prefix(config.pihole.name)) throw ConfigError("config.pihole.name: 2-24 characters of [A-Za-z0-9_-]");
+            config.pihole.timeout_ms = integer(*pihole, "timeout_ms", "config.pihole", config.pihole.timeout_ms, 1000, 120000);
+        }
+
     }  // namespace
+
+    std::string_view to_string(Network::Mode mode) {
+        switch (mode) {
+            case Network::Mode::subnet: return "subnet";
+            case Network::Mode::slices: return "slices";
+            case Network::Mode::hybrid: return "hybrid";
+            case Network::Mode::observe: return "observe";
+        }
+        return "observe";
+    }
 
     bool Match::empty() const {
         return vendor.empty() && family.empty() && type.empty() && os.empty() && hostname.empty() && vci.empty() &&
@@ -107,60 +208,59 @@ namespace fph {
     }
 
     Config Config::from_json(const json& root) {
-        allow_keys(root, {"profile", "vdom", "prefix", "interfaces", "default_segment", "segments", "rules", "protected",
-                          "assignments", "retire_after_days", "native_rule_priority", "adopt_existing", "max_changes",
-                          "$comment"},
+        allow_keys(root, {"enabled", "profile", "vdom", "prefix", "interfaces", "networks", "pihole", "daemon", "default_group",
+                          "groups", "rules", "protected", "assignments", "retire_after_days", "native_rule_priority",
+                          "adopt_existing", "max_changes", "$comment"},
                    "config");
         Config config;
+        config.enabled = boolean(root, "enabled", "config", false);
         config.profile = text(root, "profile", "config");
         config.vdom = text(root, "vdom", "config");
         config.prefix = text(root, "prefix", "config", config.prefix);
         if (!valid_prefix(config.prefix)) throw ConfigError("config.prefix: 2-24 characters of [A-Za-z0-9_-]");
-        config.interfaces = strings(root, "interfaces", "config", config.interfaces);
-        if (config.interfaces.empty()) throw ConfigError("config.interfaces: list at least one interface");
-        config.default_segment = text(root, "default_segment", "config", config.default_segment);
+        config.interfaces = strings(root, "interfaces", "config", {});
+        config.default_group = text(root, "default_group", "config", config.default_group);
         config.retire_after_days = integer(root, "retire_after_days", "config", config.retire_after_days, 1, 3650);
         config.native_rule_priority = integer(root, "native_rule_priority", "config", config.native_rule_priority, 0, 10000);
         config.adopt_existing = boolean(root, "adopt_existing", "config", config.adopt_existing);
         config.max_changes = integer(root, "max_changes", "config", config.max_changes, 1, 1000);
 
-        auto segments = root.find("segments");
-        if (segments == root.end() || !segments->is_array() || segments->empty())
-            throw ConfigError("config.segments: list at least one segment");
+        auto groups = root.find("groups");
+        if (groups == root.end() || !groups->is_array() || groups->empty())
+            throw ConfigError("config.groups: list at least one group");
         std::set<std::string> names;
-        for (std::size_t i = 0; i < segments->size(); ++i) {
-            auto where = std::format("config.segments[{}]", i);
-            const auto& item = (*segments)[i];
-            allow_keys(item, {"name", "description", "privileged", "subnet"}, where);
-            Segment segment;
-            segment.name = text(item, "name", where);
-            if (!valid_segment_name(segment.name)) throw ConfigError(where + ".name: 1-32 characters of [a-z0-9_]");
-            if (!names.insert(segment.name).second) throw ConfigError(where + ".name: duplicate segment \"" + segment.name + "\"");
-            segment.description = text(item, "description", where);
-            segment.privileged = boolean(item, "privileged", where, false);
-            segment.subnet = text(item, "subnet", where);
-            if (!segment.subnet.empty() && !valid_cidr(segment.subnet)) throw ConfigError(where + ".subnet: not an IPv4 CIDR");
-            config.segments.push_back(std::move(segment));
+        for (std::size_t i = 0; i < groups->size(); ++i) {
+            auto where = std::format("config.groups[{}]", i);
+            const auto& item = (*groups)[i];
+            allow_keys(item, {"name", "description", "privileged", "pihole_group"}, where);
+            DeviceGroup group;
+            group.name = text(item, "name", where);
+            if (!valid_group_name(group.name)) throw ConfigError(where + ".name: 1-32 characters of [a-z0-9_]");
+            if (!names.insert(group.name).second) throw ConfigError(where + ".name: duplicate group \"" + group.name + "\"");
+            group.description = text(item, "description", where);
+            group.privileged = boolean(item, "privileged", where, false);
+            group.pihole_group = text(item, "pihole_group", where);
+            config.groups.push_back(std::move(group));
         }
-        const Segment* fallback = config.segment(config.default_segment);
-        if (!fallback) throw ConfigError("config.default_segment: \"" + config.default_segment + "\" is not a listed segment");
-        // Unknown devices land in the default segment, so it must never grant privileged access.
-        if (fallback->privileged) throw ConfigError("config.default_segment: the default segment cannot be privileged");
+        const DeviceGroup* fallback = config.group(config.default_group);
+        if (!fallback) throw ConfigError("config.default_group: \"" + config.default_group + "\" is not a listed group");
+        // Unknown devices land in the default group, so it must never grant privileged access.
+        if (fallback->privileged) throw ConfigError("config.default_group: the default group cannot be privileged");
 
         if (auto rules = root.find("rules"); rules != root.end() && !rules->is_null()) {
             if (!rules->is_array()) throw ConfigError("config.rules: must be an array");
             for (std::size_t i = 0; i < rules->size(); ++i) {
                 auto where = std::format("config.rules[{}]", i);
                 const auto& item = (*rules)[i];
-                allow_keys(item, {"name", "segment", "priority", "match"}, where);
+                allow_keys(item, {"name", "group", "priority", "match"}, where);
                 Rule rule;
-                rule.segment = text(item, "segment", where);
-                const Segment* target = config.segment(rule.segment);
-                if (!target) throw ConfigError(where + ".segment: \"" + rule.segment + "\" is not a listed segment");
+                rule.group = text(item, "group", where);
+                const DeviceGroup* target = config.group(rule.group);
+                if (!target) throw ConfigError(where + ".group: \"" + rule.group + "\" is not a listed group");
                 if (target->privileged)
-                    throw ConfigError(where + ".segment: \"" + rule.segment +
-                                      "\" is privileged; privileged segments are only entered by explicit assignment");
-                rule.name = text(item, "name", where, std::format("{}#{}", rule.segment, i));
+                    throw ConfigError(where + ".group: \"" + rule.group +
+                                      "\" is privileged; privileged groups are only entered by explicit assignment");
+                rule.name = text(item, "name", where, std::format("{}#{}", rule.group, i));
                 rule.priority = integer(item, "priority", where, rule.priority, 0, 10000);
                 auto match = item.find("match");
                 if (match == item.end()) throw ConfigError(where + ".match: required");
@@ -169,6 +269,17 @@ namespace fph {
             }
         }
 
+        parse_networks(config, root);
+        parse_pihole(config, root);
+        if (auto daemon = root.find("daemon"); daemon != root.end() && !daemon->is_null()) {
+            if (!daemon->is_object()) throw ConfigError("config.daemon: must be an object");
+            config.daemon = *daemon;
+        }
+
+        if (config.interfaces.empty())
+            for (const auto& n: config.networks) config.interfaces.push_back(n.interface);
+        if (config.interfaces.empty()) throw ConfigError("config: list at least one network (or interface)");
+
         for (const auto& mac: strings(root, "protected", "config", {})) {
             auto normalized = normalize_mac(mac);
             if (!normalized) throw ConfigError("config.protected: \"" + mac + "\" is not a MAC address");
@@ -176,12 +287,12 @@ namespace fph {
         }
 
         if (auto assignments = root.find("assignments"); assignments != root.end() && !assignments->is_null()) {
-            if (!assignments->is_object()) throw ConfigError("config.assignments: must be an object of mac -> segment");
+            if (!assignments->is_object()) throw ConfigError("config.assignments: must be an object of mac -> group");
             for (auto it = assignments->begin(); it != assignments->end(); ++it) {
                 auto normalized = normalize_mac(it.key());
                 if (!normalized) throw ConfigError("config.assignments: \"" + it.key() + "\" is not a MAC address");
-                if (!it->is_string() || !config.segment(it->get<std::string>()))
-                    throw ConfigError("config.assignments." + it.key() + ": must name a listed segment");
+                if (!it->is_string() || !config.group(it->get<std::string>()))
+                    throw ConfigError("config.assignments." + it.key() + ": must name a listed group");
                 config.assignments[*normalized] = it->get<std::string>();
             }
         }
@@ -189,12 +300,12 @@ namespace fph {
     }
 
     json Config::to_json() const {
-        json segments_json = json::array();
-        for (const auto& s: segments) {
+        json groups_json = json::array();
+        for (const auto& s: groups) {
             json item = {{"name", s.name}, {"privileged", s.privileged}};
             if (!s.description.empty()) item["description"] = s.description;
-            if (!s.subnet.empty()) item["subnet"] = s.subnet;
-            segments_json.push_back(std::move(item));
+            if (!s.pihole_group.empty()) item["pihole_group"] = s.pihole_group;
+            groups_json.push_back(std::move(item));
         }
         json rules_json = json::array();
         for (const auto& r: rules) {
@@ -207,28 +318,50 @@ namespace fph {
             put("hostname", r.match.hostname);
             put("vci", r.match.vci);
             put("mac_prefix", r.match.mac_prefix);
-            rules_json.push_back({{"name", r.name}, {"segment", r.segment}, {"priority", r.priority}, {"match", match}});
+            rules_json.push_back({{"name", r.name}, {"group", r.group}, {"priority", r.priority}, {"match", match}});
         }
-        return {{"profile", profile}, {"vdom", vdom}, {"prefix", prefix}, {"interfaces", interfaces},
-                {"default_segment", default_segment}, {"segments", segments_json}, {"rules", rules_json},
+        json networks_json = json::array();
+        for (const auto& n: networks) {
+            json slices = json::array();
+            for (const auto& sl: n.slices) slices.push_back({{"group", sl.group}, {"cidr", sl.cidr}});
+            networks_json.push_back({{"interface", n.interface}, {"mode", std::string(fph::to_string(n.mode))}, {"group", n.group},
+                                     {"slices", slices}, {"manage_reservations", n.manage_reservations}});
+        }
+        json pihole_json = {{"url", pihole.url}, {"name", pihole.name}, {"timeout_ms", pihole.timeout_ms}};
+        if (!pihole.ca_bundle.empty()) pihole_json["ca_bundle"] = pihole.ca_bundle;
+        return {{"enabled", enabled}, {"profile", profile}, {"vdom", vdom}, {"prefix", prefix}, {"interfaces", interfaces},
+                {"networks", networks_json}, {"pihole", pihole_json}, {"daemon", daemon},
+                {"default_group", default_group}, {"groups", groups_json}, {"rules", rules_json},
                 {"protected", protected_macs}, {"assignments", assignments}, {"retire_after_days", retire_after_days},
                 {"native_rule_priority", native_rule_priority}, {"adopt_existing", adopt_existing},
                 {"max_changes", max_changes}};
     }
 
-    const Segment* Config::segment(std::string_view name) const {
-        for (const auto& s: segments)
+    const DeviceGroup* Config::group(std::string_view name) const {
+        for (const auto& s: groups)
             if (s.name == name) return &s;
         return nullptr;
+    }
+
+    const Network* Config::network(std::string_view interface) const {
+        for (const auto& n: networks)
+            if (n.interface == interface) return &n;
+        return nullptr;
+    }
+
+    std::string Config::slice_name(std::string_view cidr) const {
+        std::string out = prefix + "slice-";
+        for (char c: cidr) out += c == '/' ? '-' : c;
+        return out;
     }
 
     bool Config::is_protected(std::string_view mac) const {
         return std::ranges::find(protected_macs, mac) != protected_macs.end();
     }
 
-    std::size_t Config::segment_rank(std::string_view name) const {
-        for (std::size_t i = 0; i < segments.size(); ++i)
-            if (segments[i].name == name) return i;
+    std::size_t Config::group_rank(std::string_view name) const {
+        for (std::size_t i = 0; i < groups.size(); ++i)
+            if (groups[i].name == name) return i;
         return std::string::npos;
     }
 
@@ -245,30 +378,34 @@ namespace fph {
     }
 
     json example_config() {
-        // The segments mirror the operator's planning table; subnets are documentation until subnet
-        // assignment is proven. Rules only target non-privileged segments (enforced by from_json).
+        // The groups mirror the operator's planning table; subnets are documentation until subnet
+        // assignment is proven. Rules only target non-privileged groups (enforced by from_json).
         return json::parse(R"json({
-  "$comment": "forti-pihole configuration. Segments are FortiGate address groups <prefix>seg-<name>; edit membership in the FortiGate GUI.",
+  "$comment": "forti-pihole configuration. Groups are FortiGate address groups <prefix>grp-<name> (edit membership in the FortiGate GUI) mapped to Pi-hole groups. Nothing is written until enabled is true.",
+  "enabled": false,
   "profile": "",
   "prefix": "fp-",
-  "interfaces": ["internal"],
-  "default_segment": "default",
-  "segments": [
-    {"name": "owner", "description": "Owner's own devices", "privileged": true, "subnet": "192.168.60.0/24"},
-    {"name": "work", "description": "Work computers", "privileged": true, "subnet": "192.168.50.0/24"},
-    {"name": "tvs", "description": "TVs and streaming sticks", "subnet": "192.168.40.0/24"},
-    {"name": "iot_trusted", "description": "IoT devices with a known, needed cloud", "subnet": "192.168.31.0/24"},
-    {"name": "iot_untrusted", "description": "Commodity IoT (plugs, bulbs)", "subnet": "192.168.30.0/24"},
-    {"name": "default", "description": "Everything not yet classified (the existing 192.168.1.0/24)"}
+  "pihole": {"url": "", "name": "default"},
+  "networks": [
+    {"interface": "internal", "mode": "observe", "group": "default", "slices": [], "manage_reservations": false}
+  ],
+  "default_group": "default",
+  "groups": [
+    {"name": "trusted", "description": "The operator's own devices", "privileged": true},
+    {"name": "work", "description": "Work computers", "privileged": true},
+    {"name": "tvs", "description": "TVs and streaming sticks"},
+    {"name": "iot_trusted", "description": "IoT devices with a known, needed cloud"},
+    {"name": "iot_untrusted", "description": "Commodity IoT (plugs, bulbs)"},
+    {"name": "default", "description": "Everything not yet classified"}
   ],
   "rules": [
-    {"name": "kasa-plugs", "segment": "iot_untrusted", "priority": 200, "match": {"vendor": "TP-Link"}},
-    {"name": "hue", "segment": "iot_untrusted", "match": {"vendor": "Philips", "family": "Hue"}},
-    {"name": "fire-tv", "segment": "tvs", "match": {"vendor": "Amazon", "family": "Fire TV*"}},
-    {"name": "smart-tvs", "segment": "tvs", "match": {"type": "Television"}},
-    {"name": "ring", "segment": "iot_trusted", "match": {"vendor": "Ring"}},
-    {"name": "rain-bird", "segment": "iot_trusted", "match": {"vendor": "Rain Bird"}},
-    {"name": "myq", "segment": "iot_trusted", "match": {"vendor": "Chamberlain"}}
+    {"name": "kasa-plugs", "group": "iot_untrusted", "priority": 200, "match": {"vendor": "TP-Link"}},
+    {"name": "hue", "group": "iot_untrusted", "match": {"vendor": "Philips", "family": "Hue"}},
+    {"name": "fire-tv", "group": "tvs", "match": {"vendor": "Amazon", "family": "Fire TV*"}},
+    {"name": "smart-tvs", "group": "tvs", "match": {"type": "Television"}},
+    {"name": "ring", "group": "iot_trusted", "match": {"vendor": "Ring"}},
+    {"name": "rain-bird", "group": "iot_trusted", "match": {"vendor": "Rain Bird"}},
+    {"name": "myq", "group": "iot_trusted", "match": {"vendor": "Chamberlain"}}
   ],
   "protected": [],
   "assignments": {},

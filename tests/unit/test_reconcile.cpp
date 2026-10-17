@@ -24,7 +24,7 @@ namespace {
         ASSERT_TRUE(fake.apply({{"plan_id", id}}).value("ok", false));
         for (const auto& [mac, w]: changes.written) {
             state.devices[mac].object = w.object;
-            state.devices[mac].written_segment = w.segment;
+            state.devices[mac].written_group = w.group;
         }
         for (const auto& mac: changes.retired) state.devices.erase(mac);
     }
@@ -38,7 +38,7 @@ TEST(Reconcile, FirstRunCreatesGroupsAndObjects) {
     FakeGateway fake;
     populate(fake);
     auto changes = plan_for(fake, test_config());
-    EXPECT_EQ(count_ops(changes, "create", "firewall/addrgrp"), 4u);   // every configured segment
+    EXPECT_EQ(count_ops(changes, "create", "firewall/addrgrp"), 4u);   // every configured group
     EXPECT_EQ(count_ops(changes, "create", "firewall/address"), 6u);   // one object per device
     // Objects come first, then the groups that reference them.
     EXPECT_EQ(changes.operations.front()["resource"], "firewall/address");
@@ -49,11 +49,11 @@ TEST(Reconcile, FirstRunCreatesGroupsAndObjects) {
     }
     State state;
     apply_to(fake, changes, state);
-    auto iot = fake.members("fp-seg-iot_untrusted");
+    auto iot = fake.members("fp-grp-iot_untrusted");
     EXPECT_EQ(iot.size(), 2u);
-    EXPECT_EQ(fake.members("fp-seg-tvs").size(), 1u);
-    EXPECT_EQ(fake.members("fp-seg-owner").size(), 0u);   // privileged: nothing inferred
-    EXPECT_EQ(fake.members("fp-seg-default").size(), 3u);
+    EXPECT_EQ(fake.members("fp-grp-tvs").size(), 1u);
+    EXPECT_EQ(fake.members("fp-grp-owner").size(), 0u);   // privileged: nothing inferred
+    EXPECT_EQ(fake.members("fp-grp-default").size(), 3u);
 }
 
 TEST(Reconcile, IsIdempotent) {
@@ -75,14 +75,14 @@ TEST(Reconcile, PinMovesADeviceAndKeepsAdministratorMembers) {
     apply_to(fake, plan_for(fake, config), state);
     // The operator also put an object of their own into the tvs group.
     fake.addresses["Projector"] = {{"name", "Projector"}, {"type", "ipmask"}, {"subnet", "192.0.2.99 255.255.255.255"}, {"comment", ""}};
-    fake.groups["fp-seg-tvs"]["member"].push_back({{"name", "Projector"}});
-    state.devices[plug1].written_segment = "iot_untrusted";
+    fake.addrgrps["fp-grp-tvs"]["member"].push_back({{"name", "Projector"}});
+    state.devices[plug1].written_group = "iot_untrusted";
     state.pins[plug1] = {"tvs", "assign", now};
     auto changes = plan_for(fake, config, state);
     apply_to(fake, changes, state);
-    auto tvs = fake.members("fp-seg-tvs");
+    auto tvs = fake.members("fp-grp-tvs");
     EXPECT_NE(std::ranges::find(tvs, "Projector"), tvs.end());
-    EXPECT_EQ(fake.members("fp-seg-iot_untrusted").size(), 1u);
+    EXPECT_EQ(fake.members("fp-grp-iot_untrusted").size(), 1u);
     EXPECT_EQ(tvs.size(), 3u);
     EXPECT_TRUE(plan_for(fake, config, state).empty());
 }
@@ -111,7 +111,7 @@ TEST(Reconcile, RetiresOnlyLongGoneManagedObjects) {
     ASSERT_EQ(count_ops(changes, "delete", "firewall/address"), 1u);
     EXPECT_EQ(changes.retired, std::vector<std::string>{gone});
     apply_to(fake, changes, state);
-    EXPECT_EQ(fake.members("fp-seg-default").size(), 2u);
+    EXPECT_EQ(fake.members("fp-grp-default").size(), 2u);
 
     // Within the grace period nothing is retired.
     FakeGateway fresh;
@@ -161,13 +161,13 @@ TEST(Reconcile, ConnectivityCheckBlocksARouteLoss) {
     auto config = test_config();
     State state;
     apply_to(fake, plan_for(fake, config), state);
-    // The operator has started using segments: only iot_untrusted may browse now.
+    // The operator has started using groups: only iot_untrusted may browse now.
     fake.policies = json::parse(R"([
         {"policyid": 12, "name": "DNS", "status": "enable", "action": "accept", "srcintf": [{"name": "internal"}],
          "dstintf": [{"name": "internal1"}], "srcaddr": [{"name": "LAN"}], "dstaddr": [{"name": "DNS Server"}],
          "service": [{"name": "DNS"}], "users": [], "groups": []},
         {"policyid": 30, "name": "iot out", "status": "enable", "action": "accept", "srcintf": [{"name": "internal"}],
-         "dstintf": [{"name": "wan1"}], "srcaddr": [{"name": "fp-seg-iot_untrusted"}], "dstaddr": [{"name": "all"}],
+         "dstintf": [{"name": "wan1"}], "srcaddr": [{"name": "fp-grp-iot_untrusted"}], "dstaddr": [{"name": "all"}],
          "service": [{"name": "HTTPS"}], "users": [], "groups": []}
     ])");
     // Moving a plug to tvs would cut its internet: refused, it stays where it is.

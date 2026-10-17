@@ -53,11 +53,11 @@ namespace fph {
             record.first_seen = num(item, "first_seen");
             record.last_seen = num(item, "last_seen");
             record.object = str(item, "object");
-            record.written_segment = str(item, "written_segment");
+            record.written_group = str(item, "written_group");
             state.devices.emplace(mac, std::move(record));
         }
         for (const auto& [mac, item]: root.value("pins", json::object()).items())
-            state.pins.emplace(mac, Pin{str(item, "segment"), str(item, "source"), num(item, "at")});
+            state.pins.emplace(mac, Pin{str(item, "group"), str(item, "source"), num(item, "at")});
         for (const auto& item: root.value("candidates", json::array())) {
             Candidate candidate;
             candidate.id = str(item, "id");
@@ -80,7 +80,7 @@ namespace fph {
             pending.plan_id = str(*it, "plan_id");
             pending.at = num(*it, "at");
             for (const auto& [mac, entry]: it->value("written", json::object()).items())
-                pending.written[mac] = {str(entry, "object"), str(entry, "segment")};
+                pending.written[mac] = {str(entry, "object"), str(entry, "group")};
             for (const auto& mac: it->value("retired", json::array()))
                 if (mac.is_string()) pending.retired.push_back(mac.get<std::string>());
             state.pending = std::move(pending);
@@ -88,17 +88,17 @@ namespace fph {
         return state;
     }
 
-    bool State::wrote(std::string_view mac, std::string_view object, std::string_view segment) const {
+    bool State::wrote(std::string_view mac, std::string_view object, std::string_view group) const {
         if (auto it = devices.find(std::string(mac)); it != devices.end())
-            if (it->second.object == object && it->second.written_segment == segment) return true;
+            if (it->second.object == object && it->second.written_group == group) return true;
         if (pending)
             if (auto it = pending->written.find(std::string(mac)); it != pending->written.end())
-                return it->second.first == object && it->second.second == segment;
+                return it->second.first == object && it->second.second == group;
         return false;
     }
 
     bool State::has_written(std::string_view mac) const {
-        if (auto it = devices.find(std::string(mac)); it != devices.end() && !it->second.written_segment.empty()) return true;
+        if (auto it = devices.find(std::string(mac)); it != devices.end() && !it->second.written_group.empty()) return true;
         return pending && pending->written.contains(std::string(mac));
     }
 
@@ -108,9 +108,9 @@ namespace fph {
             devices_json[mac] = {{"label", r.label}, {"hostname", r.hostname}, {"vendor", r.vendor}, {"family", r.family},
                                  {"os", r.os}, {"os_version", r.os_version}, {"randomized", r.randomized},
                                  {"first_seen", r.first_seen}, {"last_seen", r.last_seen}, {"object", r.object},
-                                 {"written_segment", r.written_segment}};
+                                 {"written_group", r.written_group}};
         json pins_json = json::object();
-        for (const auto& [mac, p]: pins) pins_json[mac] = {{"segment", p.segment}, {"source", p.source}, {"at", p.at}};
+        for (const auto& [mac, p]: pins) pins_json[mac] = {{"group", p.group}, {"source", p.source}, {"at", p.at}};
         json candidates_json = json::array();
         for (const auto& c: candidates)
             candidates_json.push_back({{"id", c.id}, {"old_mac", c.old_mac}, {"new_mac", c.new_mac}, {"score", c.score},
@@ -119,7 +119,7 @@ namespace fph {
                     {"dismissed", dismissed}, {"retire_now", retire_now}, {"last_apply", last_apply}, {"last_plan", last_plan}};
         if (pending) {
             json written = json::object();
-            for (const auto& [mac, entry]: pending->written) written[mac] = {{"object", entry.first}, {"segment", entry.second}};
+            for (const auto& [mac, entry]: pending->written) written[mac] = {{"object", entry.first}, {"group", entry.second}};
             out["pending"] = {{"plan_id", pending->plan_id}, {"written", written}, {"retired", pending->retired}, {"at", pending->at}};
         }
         return out;

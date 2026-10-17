@@ -41,11 +41,11 @@ namespace fph {
         }
 
         bool referenced_outside(const Snapshot& snapshot, const Config& config, std::string_view object) {
-            for (const auto& [name, group]: snapshot.groups) {
-                bool segment_group = group.managed() && name.starts_with(config.prefix + "seg-");
-                if (segment_group) continue;
-                if (std::ranges::find(group.members, object) != group.members.end()) return true;
-                if (std::ranges::find(group.exclude_members, object) != group.exclude_members.end()) return true;
+            for (const auto& [name, ag]: snapshot.addrgrps) {
+                bool group_group = ag.managed() && name.starts_with(config.prefix + "grp-");
+                if (group_group) continue;
+                if (std::ranges::find(ag.members, object) != ag.members.end()) return true;
+                if (std::ranges::find(ag.exclude_members, object) != ag.exclude_members.end()) return true;
             }
             for (const auto& policy: snapshot.policies)
                 if (std::ranges::find(policy.srcaddr, object) != policy.srcaddr.end() ||
@@ -64,9 +64,9 @@ namespace fph {
         return text;
     }
 
-    std::string group_comment(const Segment& segment) {
-        std::string text = std::string(marker) + ": segment " + segment.name;
-        if (!segment.description.empty()) text += " - " + printable(segment.description, 150);
+    std::string group_comment(const DeviceGroup& group) {
+        std::string text = std::string(marker) + ": group " + group.name;
+        if (!group.description.empty()) text += " - " + printable(group.description, 150);
         return text;
     }
 
@@ -74,15 +74,15 @@ namespace fph {
                         std::int64_t now, int max_changes) {
         Changeset out;
 
-        // Desired members per segment group, starting from what is there.
-        std::map<std::string, std::vector<std::string>> desired;   // segment -> members
+        // Desired members per group group, starting from what is there.
+        std::map<std::string, std::vector<std::string>> desired;   // group -> members
         std::set<std::string> missing_groups;
-        for (const auto& segment: config.segments) {
-            if (classification.unusable_segments.contains(segment.name)) continue;
-            if (const Group* g = snapshot.group(config.group_name(segment.name))) desired[segment.name] = g->members;
+        for (const auto& group: config.groups) {
+            if (classification.unusable_groups.contains(group.name)) continue;
+            if (const AddrGroup* g = snapshot.addrgrp(config.addrgrp_name(group.name))) desired[group.name] = g->members;
             else {
-                desired[segment.name] = {};
-                missing_groups.insert(segment.name);
+                desired[group.name] = {};
+                missing_groups.insert(group.name);
             }
         }
         auto current = desired;
@@ -92,22 +92,22 @@ namespace fph {
         std::vector<std::string> changed_devices;   // in order, for max_changes
 
         for (const auto& decision: classification.decisions) {
-            if (decision.keep || decision.segment.empty() || !desired.contains(decision.segment)) continue;
+            if (decision.keep || decision.group.empty() || !desired.contains(decision.group)) continue;
             const auto& device = decision.device;
             bool changed = false;
             std::string from;
-            // Out of every other segment group (single-device members only).
-            for (auto& [segment, members]: desired) {
-                if (segment == decision.segment) continue;
+            // Out of every other group group (single-device members only).
+            for (auto& [group, members]: desired) {
+                if (group == decision.group) continue;
                 auto before = members.size();
                 std::erase_if(members, [&](const auto& m) { return single_device_member(snapshot, m, device); });
                 if (members.size() != before) {
                     changed = true;
-                    if (from.empty()) from = segment;
+                    if (from.empty()) from = group;
                 }
             }
-            // Into its segment group, unless a member there already covers it.
-            auto& target = desired[decision.segment];
+            // Into its group group, unless a member there already covers it.
+            auto& target = desired[decision.group];
             bool covered = std::ranges::any_of(target, [&](const auto& m) { return address_covers(snapshot, m, Endpoint{device.mac, device.ip}); });
             std::string member = decision.member;
             if (!covered) {
@@ -122,10 +122,10 @@ namespace fph {
                         break;
                     }
             }
-            out.written[device.mac] = {member, decision.segment};
+            out.written[device.mac] = {member, decision.group};
             if (changed) {
                 changed_devices.push_back(device.mac);
-                out.changes.push_back({from.empty() ? "place" : "move", device.mac, device.label(), member, decision.segment, from,
+                out.changes.push_back({from.empty() ? "place" : "move", device.mac, device.label(), member, decision.group, from,
                                        decision.reasons.empty() ? decision.source : decision.reasons.back()});
             }
         }
@@ -139,9 +139,9 @@ namespace fph {
                 auto it = out.written.find(mac);
                 if (device && it != out.written.end()) {
                     // Restore: every single-device member of it back to its current groups.
-                    for (auto& [segment, members]: desired) {
+                    for (auto& [group, members]: desired) {
                         std::erase_if(members, [&](const auto& m) { return m == it->second.object || single_device_member(snapshot, m, *device); });
-                        for (const auto& m: current[segment])
+                        for (const auto& m: current[group])
                             if ((m == it->second.object || single_device_member(snapshot, m, *device)) && std::ranges::find(members, m) == members.end())
                                 members.push_back(m);
                     }
@@ -171,21 +171,21 @@ namespace fph {
                             object->macs.size() == 1 && normalize_mac(object->macs.front()) == mac;
                 if (!ours) {
                     // Adopted (an administrator's object) or edited since: remove our reference, keep the object.
-                    for (auto& [segment, members]: desired) std::erase(members, record.object);
+                    for (auto& [group, members]: desired) std::erase(members, record.object);
                     out.retired.push_back(mac);
-                    out.changes.push_back({"retire", mac, record.label, record.object, {}, record.written_segment,
+                    out.changes.push_back({"retire", mac, record.label, record.object, {}, record.written_group,
                                            "not an object forti-pihole owns: reference removed, object kept"});
                     continue;
                 }
                 if (referenced_outside(snapshot, config, object->name)) {
-                    out.notes.push_back(std::format("{} ({}) is due for retirement but is used outside the segment groups; kept",
+                    out.notes.push_back(std::format("{} ({}) is due for retirement but is used outside the group groups; kept",
                                                     object->name, record.label));
                     continue;
                 }
-                for (auto& [segment, members]: desired) std::erase(members, object->name);
+                for (auto& [group, members]: desired) std::erase(members, object->name);
                 retiring_objects.insert(object->name);
                 out.retired.push_back(mac);
-                out.changes.push_back({"retire", mac, record.label, object->name, {}, record.written_segment,
+                out.changes.push_back({"retire", mac, record.label, object->name, {}, record.written_group,
                                        replaced ? "replaced by a confirmed reassociation"
                                                 : std::format("not seen for more than {} days", config.retire_after_days)});
             }
@@ -204,12 +204,12 @@ namespace fph {
                 a.comment = object_comment(*device);
                 after.addresses[name] = a;
             }
-            for (const auto& [segment, members]: desired) {
-                auto name = config.group_name(segment);
-                auto& group = after.groups[name];
-                group.name = name;
-                if (group.comment.empty()) group.comment = group_comment(*config.segment(segment));
-                group.members = members;
+            for (const auto& [group, members]: desired) {
+                auto name = config.addrgrp_name(group);
+                auto& ag = after.addrgrps[name];
+                ag.name = name;
+                if (ag.comment.empty()) ag.comment = group_comment(*config.group(group));
+                ag.members = members;
             }
             for (const auto& name: retiring_objects) after.addresses.erase(name);
             return after;
@@ -222,11 +222,11 @@ namespace fph {
                 const Device* device = snapshot.device(loss.mac);
                 if (!device) continue;
                 auto written = out.written.find(loss.mac);
-                for (auto& [segment, members]: desired) {
+                for (auto& [group, members]: desired) {
                     std::erase_if(members, [&](const auto& m) {
                         return (written != out.written.end() && m == written->second.object) || single_device_member(snapshot, m, *device);
                     });
-                    for (const auto& m: current[segment])
+                    for (const auto& m: current[group])
                         if (single_device_member(snapshot, m, *device) || (written != out.written.end() && m == written->second.object))
                             if (std::ranges::find(members, m) == members.end()) members.push_back(m);
                 }
@@ -246,22 +246,22 @@ namespace fph {
                                       {"object", {{"name", name}, {"type", "mac"}, {"macaddr", json::array({{{"macaddr", device->mac}}})},
                                                   {"comment", object_comment(*device)}}}});
         }
-        for (const auto& segment: config.segments) {
-            if (!missing_groups.contains(segment.name)) continue;
+        for (const auto& group: config.groups) {
+            if (!missing_groups.contains(group.name)) continue;
             out.operations.push_back({{"op", "create"}, {"resource", "firewall/addrgrp"},
-                                      {"object", {{"name", config.group_name(segment.name)}, {"member", member_list(desired[segment.name])},
-                                                  {"comment", group_comment(segment)}}}});
-            out.changes.push_back({"create-group", {}, {}, config.group_name(segment.name), segment.name, {}, "segment group missing"});
+                                      {"object", {{"name", config.addrgrp_name(group.name)}, {"member", member_list(desired[group.name])},
+                                                  {"comment", group_comment(group)}}}});
+            out.changes.push_back({"create-group", {}, {}, config.addrgrp_name(group.name), group.name, {}, "group group missing"});
         }
-        for (const auto& segment: config.segments) {
-            if (missing_groups.contains(segment.name) || !desired.contains(segment.name)) continue;
-            auto want = desired[segment.name];
-            auto have = current[segment.name];
+        for (const auto& group: config.groups) {
+            if (missing_groups.contains(group.name) || !desired.contains(group.name)) continue;
+            auto want = desired[group.name];
+            auto have = current[group.name];
             auto sorted_want = want, sorted_have = have;
             std::ranges::sort(sorted_want);
             std::ranges::sort(sorted_have);
             if (sorted_want == sorted_have) continue;
-            out.operations.push_back({{"op", "update"}, {"resource", "firewall/addrgrp"}, {"key", config.group_name(segment.name)},
+            out.operations.push_back({{"op", "update"}, {"resource", "firewall/addrgrp"}, {"key", config.addrgrp_name(group.name)},
                                       {"set", {{"member", member_list(want)}}}});
         }
         for (const auto& name: retiring_objects)
@@ -278,12 +278,12 @@ namespace fph {
             out.changes.push_back({"comment", decision.device.mac, decision.device.label(), a->name, {}, {}, "description refreshed"});
         }
 
-        // Managed segment groups whose segment is no longer configured.
-        for (const auto& [name, group]: snapshot.groups) {
-            if (!group.managed() || !name.starts_with(config.prefix + "seg-")) continue;
-            auto segment = name.substr(config.prefix.size() + 4);
-            if (!config.segment(segment))
-                out.notes.push_back(std::format("{} belongs to no configured segment; left as it is (delete it in the GUI when unused)", name));
+        // Managed group groups whose group is no longer configured.
+        for (const auto& [name, ag]: snapshot.addrgrps) {
+            if (!ag.managed() || !name.starts_with(config.prefix + "grp-")) continue;
+            auto group = name.substr(config.prefix.size() + 4);
+            if (!config.group(group))
+                out.notes.push_back(std::format("{} belongs to no configured group; left as it is (delete it in the GUI when unused)", name));
         }
 
         // The allowlist, before anything reaches the engine.

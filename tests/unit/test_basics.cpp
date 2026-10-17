@@ -34,28 +34,29 @@ TEST(Mac, EntriesAndRanges) {
 
 TEST(Config, ExampleIsValid) {
     auto config = Config::from_json(example_config());
-    EXPECT_EQ(config.default_segment, "default");
-    EXPECT_TRUE(config.segment("owner")->privileged);
+    EXPECT_EQ(config.default_group, "default");
+    ASSERT_TRUE(config.group("trusted"));
+    EXPECT_TRUE(config.group("trusted")->privileged);
     EXPECT_FALSE(config.rules.empty());
 }
 
 TEST(Config, RefusesRulesIntoPrivilegedSegments) {
-    auto j = json::parse(R"({"segments": [{"name": "owner", "privileged": true}, {"name": "default"}],
-                             "rules": [{"segment": "owner", "match": {"hostname": "Alexs-*"}}]})");
+    auto j = json::parse(R"({"groups": [{"name": "owner", "privileged": true}, {"name": "default"}],
+                             "rules": [{"group": "owner", "match": {"hostname": "Alexs-*"}}]})");
     EXPECT_THROW(Config::from_json(j), ConfigError);
 }
 
 TEST(Config, RefusesPrivilegedDefault) {
-    auto j = json::parse(R"({"default_segment": "owner", "segments": [{"name": "owner", "privileged": true}]})");
+    auto j = json::parse(R"({"default_group": "owner", "groups": [{"name": "owner", "privileged": true}]})");
     EXPECT_THROW(Config::from_json(j), ConfigError);
 }
 
 TEST(Config, RefusesUnknownKeysAndBadValues) {
-    EXPECT_THROW(Config::from_json(json::parse(R"({"segments": [{"name": "default"}], "colour": 1})")), ConfigError);
-    EXPECT_THROW(Config::from_json(json::parse(R"({"segments": [{"name": "Default"}]})")), ConfigError);
-    EXPECT_THROW(Config::from_json(json::parse(R"({"segments": [{"name": "default", "subnet": "10.0.0.0/33"}]})")), ConfigError);
-    EXPECT_THROW(Config::from_json(json::parse(R"({"segments": [{"name": "default"}], "prefix": "x"})")), ConfigError);
-    EXPECT_THROW(Config::from_json(json::parse(R"({"segments": [{"name": "default"}], "rules": [{"segment": "default", "match": {}}]})")),
+    EXPECT_THROW(Config::from_json(json::parse(R"({"groups": [{"name": "default"}], "colour": 1})")), ConfigError);
+    EXPECT_THROW(Config::from_json(json::parse(R"({"groups": [{"name": "Default"}]})")), ConfigError);
+    EXPECT_THROW(Config::from_json(json::parse(R"({"groups": [{"name": "default", "subnet": "10.0.0.0/33"}]})")), ConfigError);
+    EXPECT_THROW(Config::from_json(json::parse(R"({"groups": [{"name": "default"}], "prefix": "x"})")), ConfigError);
+    EXPECT_THROW(Config::from_json(json::parse(R"({"groups": [{"name": "default"}], "rules": [{"group": "default", "match": {}}]})")),
                  ConfigError);
 }
 
@@ -100,13 +101,13 @@ TEST(Guard, TransportRefusesBeforeSending) {
     EXPECT_NE(refuse_write(Method::Post, base + "monitor/system/os/reboot", "{}", "fp-"), "");
     EXPECT_EQ(refuse_write(Method::Post, base + "cmdb/firewall/address?vdom=root", R"({"name":"fp-dev-a"})", "fp-"), "");
     EXPECT_NE(refuse_write(Method::Post, base + "cmdb/firewall/address", R"({"name":"Thermostat"})", "fp-"), "");
-    EXPECT_EQ(refuse_write(Method::Put, base + "cmdb/firewall/addrgrp/fp-seg-tvs?vdom=root", "{}", "fp-"), "");
+    EXPECT_EQ(refuse_write(Method::Put, base + "cmdb/firewall/addrgrp/fp-grp-tvs?vdom=root", "{}", "fp-"), "");
     EXPECT_NE(refuse_write(Method::Delete, base + "cmdb/firewall/addrgrp/TVs", "", "fp-"), "");
     EXPECT_NE(refuse_write(Method::Delete, base + "cmdb/firewall/address", "", "fp-"), "");
     // Encoded names are decoded before the prefix check; nested child paths are refused.
     EXPECT_EQ(refuse_write(Method::Delete, base + "cmdb/firewall/address/fp-dev-a%20b", "", "fp-"), "");
     EXPECT_NE(refuse_write(Method::Delete, base + "cmdb/firewall/address/%6Dvlan%2Fx", "", "nope-"), "");
-    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/firewall/addrgrp/fp-seg-tvs/member", "{}", "fp-"), "");
+    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/firewall/addrgrp/fp-grp-tvs/member", "{}", "fp-"), "");
 }
 
 namespace {
@@ -183,4 +184,42 @@ TEST(Inventory, PlaceholderHostnamesAreDropped) {
     auto snapshot = collect(fake, test_config(), 1'800'000'100);
     EXPECT_EQ(snapshot.device(plug1)->hostname, "");
     EXPECT_EQ(snapshot.device(plug2)->hostname, "");
+}
+
+TEST(Config, NetworksAndStrategies) {
+    auto base = json::parse(R"({"groups": [{"name": "tvs", "pihole_group": "TV"}, {"name": "iot", "pihole_group": "IOT"}, {"name": "default"}]})");
+    auto with = [&](json networks) {
+        auto j = base;
+        j["networks"] = std::move(networks);
+        return j;
+    };
+    auto config = Config::from_json(with(json::parse(R"([
+        {"interface": "internal", "mode": "slices", "slices": [{"group": "tvs", "cidr": "192.168.1.208/28"}]},
+        {"interface": "vlan30", "mode": "subnet", "group": "iot"},
+        {"interface": "vlan40", "mode": "hybrid", "group": "iot", "slices": [{"group": "tvs", "cidr": "192.168.40.0/26"}]}])")));
+    EXPECT_EQ(config.networks.size(), 3u);
+    EXPECT_EQ(config.network("vlan30")->mode, Network::Mode::subnet);
+    EXPECT_FALSE(config.enabled);                      // nothing is written until the operator says so
+    EXPECT_EQ(config.interfaces.size(), 3u);           // defaults to the networks' interfaces
+    EXPECT_EQ(config.slice_name("192.168.1.208/28"), "fp-slice-192.168.1.208-28");
+
+    // Host bits, overlaps, subnet mode with slices, slices mode with a mapped base group.
+    EXPECT_THROW(Config::from_json(with(json::parse(R"([{"interface": "i", "mode": "slices", "slices": [{"group": "tvs", "cidr": "192.168.1.209/28"}]}])"))), ConfigError);
+    EXPECT_THROW(Config::from_json(with(json::parse(R"([{"interface": "i", "mode": "slices", "slices": [
+        {"group": "tvs", "cidr": "192.168.1.192/26"}, {"group": "iot", "cidr": "192.168.1.208/28"}]}])"))), ConfigError);
+    EXPECT_THROW(Config::from_json(with(json::parse(R"([{"interface": "i", "mode": "subnet", "slices": [{"group": "tvs", "cidr": "10.0.0.0/28"}]}])"))), ConfigError);
+    EXPECT_THROW(Config::from_json(with(json::parse(R"([{"interface": "i", "mode": "slices", "group": "iot"}])"))), ConfigError);
+    EXPECT_THROW(Config::from_json(with(json::parse(R"([{"interface": "i", "mode": "vlan"}])"))), ConfigError);
+    EXPECT_THROW(Config::from_json(with(json::parse(R"([{"interface": "i"}, {"interface": "i"}])"))), ConfigError);
+}
+
+TEST(Config, PiholeSection) {
+    auto j = json::parse(R"({"networks": [{"interface": "internal"}], "groups": [{"name": "default"}],
+                             "pihole": {"url": "https://pihole.example.net/", "name": "home"}})");
+    auto config = Config::from_json(j);
+    EXPECT_EQ(config.pihole.url, "https://pihole.example.net");
+    j["pihole"]["url"] = "ftp://x";
+    EXPECT_THROW(Config::from_json(j), ConfigError);
+    j["pihole"] = {{"url", "https://x"}, {"password", "nope"}};   // secrets never live in the config file
+    EXPECT_THROW(Config::from_json(j), ConfigError);
 }

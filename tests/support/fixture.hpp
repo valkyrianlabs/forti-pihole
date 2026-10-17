@@ -33,15 +33,16 @@ namespace fph::test {
 
     inline Config test_config() {
         return Config::from_json(json::parse(R"({
-            "segments": [
+            "networks": [{"interface": "internal", "mode": "observe"}],
+            "groups": [
                 {"name": "owner", "privileged": true},
                 {"name": "tvs"},
                 {"name": "iot_untrusted"},
                 {"name": "default"}
             ],
             "rules": [
-                {"name": "plugs", "segment": "iot_untrusted", "priority": 200, "match": {"vendor": "TP-Link"}},
-                {"name": "sticks", "segment": "tvs", "match": {"vendor": "Amazon", "family": "Fire TV*"}}
+                {"name": "plugs", "group": "iot_untrusted", "priority": 200, "match": {"vendor": "TP-Link"}},
+                {"name": "sticks", "group": "tvs", "match": {"vendor": "Amazon", "family": "Fire TV*"}}
             ]
         })"));
     }

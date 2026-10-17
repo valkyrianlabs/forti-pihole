@@ -28,7 +28,7 @@ namespace fph {
 
     // New candidates from this snapshot (ids already in state or dismissed are skipped). Only old
     // identities the companion knows (state records) and that it placed or the operator pinned are
-    // considered: a reassociation transfers a segment, so there must be one to transfer.
+    // considered: a reassociation transfers a group, so there must be one to transfer.
     std::vector<Candidate> find_candidates(const Snapshot& snapshot, const State& state, const Classification& classification,
                                            std::int64_t now);
 

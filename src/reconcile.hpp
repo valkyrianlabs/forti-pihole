@@ -1,19 +1,19 @@
 //
 // Reconciliation: from classification to the smallest set of engine operations that makes the
-// segment groups say what the decisions say.
+// group groups say what the decisions say.
 //
 //   - Desired membership starts from the groups as they are, so an administrator's own members stay.
-//   - A device moves by removing its single-device members from the other segment groups and adding
-//     its member to its segment group (unless something there already covers it).
-//   - Missing segment groups and device objects are created, with the ownership marker.
+//   - A device moves by removing its single-device members from the other group groups and adding
+//     its member to its group group (unless something there already covers it).
+//   - Missing group groups and device objects are created, with the ownership marker.
 //   - Devices the companion has not seen for retire_after_days (or that a confirmed reassociation
-//     replaced) lose their managed object, unless something outside the segment groups uses it.
+//     replaced) lose their managed object, unless something outside the group groups uses it.
 //   - Every device's internet and DNS reach is simulated before and after; a device whose reach
 //     would shrink keeps its current placement (reported as blocked).
 //   - Nothing destructive happens when the inventory is empty (a failed or partial read).
 //   - At most max_changes devices change per run; the rest wait for the next one.
 //
-// Segment groups whose segment left the configuration are reported, never deleted.
+// DeviceGroup groups whose group left the configuration are reported, never deleted.
 //
 
 #ifndef FORTI_PIHOLE_RECONCILE_HPP
@@ -35,12 +35,12 @@ namespace fph {
 
     struct Change {
         std::string kind;   // create-group | create-object | move | place | retire | comment
-        std::string mac, label, object, segment, from;
+        std::string mac, label, object, group, from;
         std::string reason;
     };
 
     struct Written {
-        std::string object, segment;
+        std::string object, group;
     };
 
     struct Changeset {
@@ -61,7 +61,7 @@ namespace fph {
     // The managed object's comment: marker, then a readable description from untrusted device data
     // (printable ASCII only, bounded so FortiOS's 255-character limit holds).
     std::string object_comment(const Device& device);
-    std::string group_comment(const Segment& segment);
+    std::string group_comment(const DeviceGroup& group);
 
 }  // namespace fph
 

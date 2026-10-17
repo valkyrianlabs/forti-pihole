@@ -45,7 +45,7 @@ TEST(Cli, ApplyThenInSync) {
     Cli cli;
     EXPECT_EQ(cli({"apply"}), 0) << cli.err.str();
     EXPECT_EQ(cli.fake.applied.size(), 1u);
-    EXPECT_EQ(cli.fake.members("fp-seg-iot_untrusted").size(), 2u);
+    EXPECT_EQ(cli.fake.members("fp-grp-iot_untrusted").size(), 2u);
     EXPECT_EQ(cli({"apply", "--quiet"}), 0);
     EXPECT_EQ(cli.out.str(), "");
     EXPECT_EQ(cli.fake.applied.size(), 1u);   // nothing new to plan
@@ -58,18 +58,18 @@ TEST(Cli, GuiMoveIsRespected) {
     Cli cli;
     ASSERT_EQ(cli({"apply"}), 0);
     // The operator drags the stick's object from tvs to default in the FortiGate GUI.
-    auto object = cli.fake.members("fp-seg-tvs").front();
-    cli.fake.move_member("fp-seg-tvs", "fp-seg-default", object);
+    auto object = cli.fake.members("fp-grp-tvs").front();
+    cli.fake.move_member("fp-grp-tvs", "fp-grp-default", object);
     ASSERT_EQ(cli({"apply"}), 0) << cli.err.str();
     // Nothing moved back; the decision is now a pin.
-    EXPECT_TRUE(cli.fake.members("fp-seg-tvs").empty());
+    EXPECT_TRUE(cli.fake.members("fp-grp-tvs").empty());
     auto state = load_state(cli.home.path / "pihole" / "state.json");
     ASSERT_TRUE(state.pins.contains(stick));
-    EXPECT_EQ(state.pins[stick].segment, "default");
+    EXPECT_EQ(state.pins[stick].group, "default");
     EXPECT_EQ(state.pins[stick].source, "gui");
     // And it stays that way.
     ASSERT_EQ(cli({"apply"}), 0);
-    EXPECT_TRUE(cli.fake.members("fp-seg-tvs").empty());
+    EXPECT_TRUE(cli.fake.members("fp-grp-tvs").empty());
 }
 
 TEST(Cli, AssignAndAuto) {
@@ -77,10 +77,10 @@ TEST(Cli, AssignAndAuto) {
     ASSERT_EQ(cli({"apply"}), 0);
     EXPECT_EQ(cli({"assign", "02-00-5E-00-53-04", "owner"}), 0);
     ASSERT_EQ(cli({"apply"}), 0) << cli.err.str();
-    EXPECT_EQ(cli.fake.members("fp-seg-owner").size(), 1u);
+    EXPECT_EQ(cli.fake.members("fp-grp-owner").size(), 1u);
     EXPECT_EQ(cli({"assign", phone, "auto"}), 0);
     ASSERT_EQ(cli({"apply"}), 0);
-    EXPECT_TRUE(cli.fake.members("fp-seg-owner").empty());
+    EXPECT_TRUE(cli.fake.members("fp-grp-owner").empty());
     EXPECT_EQ(cli({"assign", phone, "nowhere"}), 2);
     EXPECT_EQ(cli({"assign", "not-a-mac", "tvs"}), 2);
 }
@@ -102,7 +102,7 @@ TEST(Cli, GuardedModeWaitsForApproval) {
     EXPECT_EQ(cli({"apply"}), 0) << cli.err.str();
     EXPECT_EQ(cli.fake.applied.size(), 1u);
     EXPECT_FALSE(load_state(cli.home.path / "pihole" / "state.json").pending);
-    EXPECT_EQ(cli.fake.members("fp-seg-iot_untrusted").size(), 2u);
+    EXPECT_EQ(cli.fake.members("fp-grp-iot_untrusted").size(), 2u);
     // And the result is not mistaken for GUI moves.
     EXPECT_TRUE(load_state(cli.home.path / "pihole" / "state.json").pins.empty());
 }
@@ -111,7 +111,7 @@ TEST(Cli, ReadOnlyProfileAppliesNothing) {
     Cli cli;
     cli.fake.mode = "read-only";
     EXPECT_EQ(cli({"apply"}), 7);
-    EXPECT_TRUE(cli.fake.groups.empty());
+    EXPECT_TRUE(cli.fake.addrgrps.empty());
 }
 
 TEST(Cli, FailedReadsChangeNothing) {
@@ -137,16 +137,16 @@ TEST(Cli, ReassociationNeedsConfirmation) {
     auto state = load_state(cli.home.path / "pihole" / "state.json");
     ASSERT_EQ(state.candidates.size(), 1u);
     // Not transferred on its own: the new MAC sits in default.
-    auto owner = cli.fake.members("fp-seg-owner");
+    auto owner = cli.fake.members("fp-grp-owner");
     EXPECT_EQ(owner.size(), 1u);
     auto id = state.candidates[0].id;
     EXPECT_EQ(cli({"confirm", id}), 0) << cli.err.str();
     ASSERT_EQ(cli({"apply"}), 0) << cli.err.str();
     state = load_state(cli.home.path / "pihole" / "state.json");
-    EXPECT_EQ(state.pins[fresh].segment, "owner");
+    EXPECT_EQ(state.pins[fresh].group, "owner");
     EXPECT_EQ(state.pins[fresh].source, "confirm");
     EXPECT_FALSE(state.devices.contains(phone));   // retired
-    owner = cli.fake.members("fp-seg-owner");
+    owner = cli.fake.members("fp-grp-owner");
     ASSERT_EQ(owner.size(), 1u);
     EXPECT_NE(owner[0].find("005377"), std::string::npos) << owner[0];   // the new MAC's object
 }

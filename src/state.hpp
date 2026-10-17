@@ -29,11 +29,11 @@ namespace fph {
         bool randomized = false;
         std::int64_t first_seen = 0, last_seen = 0;
         std::string object;            // the member name used for it (managed or adopted)
-        std::string written_segment;   // the segment group the companion last put that member in
+        std::string written_group;   // the group group the companion last put that member in
     };
 
     struct Pin {
-        std::string segment;
+        std::string group;
         std::string source;   // "assign" (CLI), "gui" (moved in the FortiGate GUI), "confirm" (reassociation)
         std::int64_t at = 0;
     };
@@ -51,7 +51,7 @@ namespace fph {
     // a half-applied change is never mistaken for an operator's GUI move.
     struct Pending {
         std::string plan_id;
-        std::map<std::string, std::pair<std::string, std::string>> written;   // mac -> (object, segment)
+        std::map<std::string, std::pair<std::string, std::string>> written;   // mac -> (object, group)
         std::vector<std::string> retired;
         std::int64_t at = 0;
     };
@@ -69,8 +69,8 @@ namespace fph {
         static State from_json(const nlohmann::json& json);
         [[nodiscard]] nlohmann::json to_json() const;
         [[nodiscard]] const Candidate* candidate(std::string_view id) const;
-        // The companion put `object` into `segment` for `mac` (last completed apply, or a pending plan).
-        [[nodiscard]] bool wrote(std::string_view mac, std::string_view object, std::string_view segment) const;
+        // The companion put `object` into `group` for `mac` (last completed apply, or a pending plan).
+        [[nodiscard]] bool wrote(std::string_view mac, std::string_view object, std::string_view group) const;
         [[nodiscard]] bool has_written(std::string_view mac) const;
     };
 

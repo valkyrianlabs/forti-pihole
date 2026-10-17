@@ -125,7 +125,7 @@ namespace fph {
             for (const auto& [mac, w]: written) {
                 auto& r = state.devices[mac];
                 r.object = w.object;
-                r.written_segment = w.segment;
+                r.written_group = w.group;
             }
             for (const auto& mac: retired) {
                 state.devices.erase(mac);
@@ -138,7 +138,7 @@ namespace fph {
             Pending pending;
             pending.plan_id = plan_id;
             pending.at = now;
-            for (const auto& [mac, w]: changes.written) pending.written[mac] = {w.object, w.segment};
+            for (const auto& [mac, w]: changes.written) pending.written[mac] = {w.object, w.group};
             pending.retired = changes.retired;
             return pending;
         }
@@ -177,8 +177,8 @@ namespace fph {
     std::string usage_text() {
         return R"(usage: forti-pihole <command> [options]
 
-Keeps the FortiGate's device inventory classified into segments: one MAC address object per
-device (<prefix>dev-*) and one address group per segment (<prefix>seg-<segment>), native FortiOS
+Keeps the FortiGate's device inventory classified into groups: one MAC address object per
+device (<prefix>dev-*) and one address group per group (<prefix>grp-<group>), native FortiOS
 objects you can edit in the GUI. Never in the traffic path; nothing breaks if it stops running.
 
 commands:
@@ -186,7 +186,7 @@ commands:
   report [-v]             classify the inventory and show what would change (read-only)
   plan                    make an engine plan for the pending changes (read-only preview)
   apply [--max-changes N] plan and apply (as the profile's mode allows); the timer runs this
-  assign MAC SEGMENT      pin a device to a segment (explicit; allows privileged segments)
+  assign MAC SEGMENT      pin a device to a group (explicit; allows privileged groups)
   assign MAC auto         drop the pin: back to rules
   confirm ID [--reject]   accept or reject a reassociation candidate
   status                  configuration, profile mode, last apply, pending plan
@@ -237,7 +237,7 @@ Subnet assignment through DHCP is not available: FortiOS behaviour for it is unp
                 return 3;
             }
             write_private(config_path, example_config().dump(2) + "\n");
-            out << "wrote " << config_path.string() << "\nedit the segments and rules, then run: forti-pihole report\n";
+            out << "wrote " << config_path.string() << "\nedit the groups and rules, then run: forti-pihole report\n";
             return 0;
         }
 
@@ -261,15 +261,15 @@ Subnet assignment through DHCP is not available: FortiOS behaviour for it is unp
                 if (options.positional.size() != 2) throw Usage("assign MAC SEGMENT|auto");
                 auto mac = normalize_mac(options.positional[0]);
                 if (!mac) throw Usage(std::format("\"{}\" is not a MAC address", options.positional[0]));
-                const auto& segment = options.positional[1];
-                if (segment != "auto" && !config.segment(segment)) throw Usage(std::format("no segment \"{}\" in the configuration", segment));
+                const auto& group = options.positional[1];
+                if (group != "auto" && !config.group(group)) throw Usage(std::format("no group \"{}\" in the configuration", group));
                 RunLock lock(env.home.lock());
                 State state = load_state(env.home.state());
-                if (segment == "auto") state.pins.erase(*mac);
-                else state.pins[*mac] = {segment, "assign", now};
+                if (group == "auto") state.pins.erase(*mac);
+                else state.pins[*mac] = {group, "assign", now};
                 save_state(env.home.state(), state);
                 out << std::format("{} {}; takes effect at the next apply\n", *mac,
-                                   segment == "auto" ? "is classified by rules again" : "pinned to " + segment);
+                                   group == "auto" ? "is classified by rules again" : "pinned to " + group);
                 return 0;
             }
 
@@ -287,14 +287,14 @@ Subnet assignment through DHCP is not available: FortiOS behaviour for it is unp
                     out << std::format("rejected {}: {} and {} stay separate devices\n", candidate.id, candidate.old_mac, candidate.new_mac);
                     return 0;
                 }
-                std::string segment;
-                if (auto pin = state.pins.find(candidate.old_mac); pin != state.pins.end()) segment = pin->second.segment;
-                else if (auto r = state.devices.find(candidate.old_mac); r != state.devices.end()) segment = r->second.written_segment;
-                if (segment.empty() || !config.segment(segment)) throw Usage("the old device has no segment to transfer");
-                state.pins[candidate.new_mac] = {segment, "confirm", now};
+                std::string group;
+                if (auto pin = state.pins.find(candidate.old_mac); pin != state.pins.end()) group = pin->second.group;
+                else if (auto r = state.devices.find(candidate.old_mac); r != state.devices.end()) group = r->second.written_group;
+                if (group.empty() || !config.group(group)) throw Usage("the old device has no group to transfer");
+                state.pins[candidate.new_mac] = {group, "confirm", now};
                 state.retire_now.insert(candidate.old_mac);
                 save_state(env.home.state(), state);
-                out << std::format("{} takes over {} from {}; the old entry is retired at the next apply\n", candidate.new_mac, segment,
+                out << std::format("{} takes over {} from {}; the old entry is retired at the next apply\n", candidate.new_mac, group,
                                    candidate.old_mac);
                 return 0;
             }
@@ -412,7 +412,7 @@ Subnet assignment through DHCP is not available: FortiOS behaviour for it is unp
             json entry = {{"time", iso_time(now)}, {"epoch", now}, {"plan_id", plan_id}, {"summary", summary_of(c.changes)}};
             json changes = json::array();
             for (const auto& x: c.changes.changes)
-                changes.push_back({{"kind", x.kind}, {"mac", x.mac}, {"label", x.label}, {"object", x.object}, {"segment", x.segment},
+                changes.push_back({{"kind", x.kind}, {"mac", x.mac}, {"label", x.label}, {"object", x.object}, {"group", x.group},
                                    {"from", x.from}});
             entry["changes"] = changes;
 

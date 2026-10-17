@@ -20,9 +20,9 @@ namespace fph {
             if (std::ranges::find(list, value) == list.end()) list.push_back(value);
         }
 
-        // Native rule objects: <prefix>rule-<segment>-<label>, dynamic device-identification. Segment
-        // names never contain '-', so the first '-' after the rule prefix ends the segment.
-        std::string native_rule_segment(const Config& config, const Address& address) {
+        // Native rule objects: <prefix>rule-<group>-<label>, dynamic device-identification. DeviceGroup
+        // names never contain '-', so the first '-' after the rule prefix ends the group.
+        std::string native_rule_group(const Config& config, const Address& address) {
             auto prefix = config.rule_prefix();
             if (!address.name.starts_with(prefix)) return {};
             auto rest = std::string_view(address.name).substr(prefix.size());
@@ -30,9 +30,9 @@ namespace fph {
             return std::string(rest.substr(0, dash));
         }
 
-        std::string pick_by_rank(const Config& config, std::vector<std::string> segments) {
-            std::ranges::sort(segments, [&](const auto& a, const auto& b) { return config.segment_rank(a) < config.segment_rank(b); });
-            return segments.empty() ? std::string() : segments.front();
+        std::string pick_by_rank(const Config& config, std::vector<std::string> groups) {
+            std::ranges::sort(groups, [&](const auto& a, const auto& b) { return config.group_rank(a) < config.group_rank(b); });
+            return groups.empty() ? std::string() : groups.front();
         }
 
     }  // namespace
@@ -104,36 +104,36 @@ namespace fph {
     Classification classify(const Snapshot& snapshot, const Config& config, const State& state, std::int64_t now) {
         Classification result;
 
-        // Segment groups that exist but are not ours (no marker): a name clash with an administrator's
-        // object. Those segments are left alone entirely.
-        for (const auto& segment: config.segments) {
-            const Group* group = snapshot.group(config.group_name(segment.name));
-            if (group && !group->managed()) {
-                result.unusable_segments.insert(segment.name);
+        // DeviceGroup groups that exist but are not ours (no marker): a name clash with an administrator's
+        // object. Those groups are left alone entirely.
+        for (const auto& group: config.groups) {
+            const AddrGroup* ag = snapshot.addrgrp(config.addrgrp_name(group.name));
+            if (ag && !ag->managed()) {
+                result.unusable_groups.insert(group.name);
                 result.warnings.push_back(std::format(
-                        "address group {} exists without the \"{}\" marker; segment {} is not managed until it is renamed or marked",
-                        group->name, marker, segment.name));
+                        "address group {} exists without the \"{}\" marker; group {} is not managed until it is renamed or marked",
+                        ag->name, marker, group.name));
             }
         }
 
         // Native rule objects (GUI-made dynamic device-identification addresses).
         struct NativeRule {
             const Address* address;
-            std::string segment;
+            std::string group;
         };
         std::vector<NativeRule> native_rules;
         for (const auto& [name, address]: snapshot.addresses) {
             if (!name.starts_with(config.rule_prefix())) continue;
-            auto segment_name = native_rule_segment(config, address);
-            const Segment* segment = config.segment(segment_name);
+            auto group_name = native_rule_group(config, address);
+            const DeviceGroup* group = config.group(group_name);
             if (address.type != "dynamic" || address.sub_type != "device-identification") {
                 result.warnings.push_back(std::format("{}: rule objects must be dynamic device-identification addresses; ignored", name));
-            } else if (!segment) {
-                result.warnings.push_back(std::format("{}: no segment \"{}\" in the configuration; ignored", name, segment_name));
-            } else if (segment->privileged) {
+            } else if (!group) {
+                result.warnings.push_back(std::format("{}: no group \"{}\" in the configuration; ignored", name, group_name));
+            } else if (group->privileged) {
                 result.warnings.push_back(std::format(
-                        "{}: segment {} is privileged and only entered by explicit assignment; rule ignored", name, segment_name));
-            } else native_rules.push_back({&address, segment_name});
+                        "{}: group {} is privileged and only entered by explicit assignment; rule ignored", name, group_name));
+            } else native_rules.push_back({&address, group_name});
         }
 
         for (const auto& device: snapshot.devices) {
@@ -144,23 +144,23 @@ namespace fph {
             if (auto it = state.devices.find(mac); it != state.devices.end()) record = &it->second;
 
             // Observed placements, in config order.
-            for (const auto& segment: config.segments) {
-                if (result.unusable_segments.contains(segment.name)) continue;
-                const Group* group = snapshot.group(config.group_name(segment.name));
-                if (!group) continue;
-                for (const auto& member: group->members) {
+            for (const auto& group: config.groups) {
+                if (result.unusable_groups.contains(group.name)) continue;
+                const AddrGroup* ag = snapshot.addrgrp(config.addrgrp_name(group.name));
+                if (!ag) continue;
+                for (const auto& member: ag->members) {
                     if (!covers(snapshot, member, device)) continue;
-                    bool ours = state.wrote(mac, member, segment.name);
-                    decision.placements.push_back({segment.name, member, ours});
+                    bool ours = state.wrote(mac, member, group.name);
+                    decision.placements.push_back({group.name, member, ours});
                 }
             }
 
             // Rule matches.
             for (const auto& rule: config.rules)
-                if (rule_matches(rule.match, device)) decision.matches.push_back({rule.segment, rule.name, rule.priority, false});
+                if (rule_matches(rule.match, device)) decision.matches.push_back({rule.group, rule.name, rule.priority, false});
             for (const auto& native: native_rules)
                 if (std::ranges::find(native.address->resolved, mac) != native.address->resolved.end())
-                    decision.matches.push_back({native.segment, native.address->name, config.native_rule_priority, true});
+                    decision.matches.push_back({native.group, native.address->name, config.native_rule_priority, true});
             std::ranges::stable_sort(decision.matches, [](const auto& a, const auto& b) { return a.priority > b.priority; });
 
             // Member object for this device.
@@ -203,44 +203,44 @@ namespace fph {
                 decision.keep = true;
                 decision.source = "protected";
                 std::vector<std::string> observed;
-                for (const auto& p: decision.placements) add_unique(observed, p.segment);
-                decision.segment = pick_by_rank(config, observed);
+                for (const auto& p: decision.placements) add_unique(observed, p.group);
+                decision.group = pick_by_rank(config, observed);
                 decision.reasons.push_back("listed in config \"protected\": never classified or moved automatically");
                 result.decisions.push_back(std::move(decision));
                 continue;
             }
 
             // Operator placements: everything observed that the companion did not write itself.
-            std::vector<std::string> operator_segments;
+            std::vector<std::string> operator_groups;
             for (const auto& p: decision.placements)
-                if (!p.by_companion) add_unique(operator_segments, p.segment);
+                if (!p.by_companion) add_unique(operator_groups, p.group);
             std::vector<std::string> observed;
-            for (const auto& p: decision.placements) add_unique(observed, p.segment);
+            for (const auto& p: decision.placements) add_unique(observed, p.group);
 
             std::optional<Pin> pin;
             if (auto it = state.pins.find(mac); it != state.pins.end()) pin = it->second;
 
             if (state.has_written(mac)) {
                 std::string written_object = record ? record->object : std::string();
-                std::string written_segment = record ? record->written_segment : std::string();
+                std::string written_group = record ? record->written_group : std::string();
                 if (state.pending)
                     if (auto it = state.pending->written.find(mac); it != state.pending->written.end())
-                        std::tie(written_object, written_segment) = it->second;
+                        std::tie(written_object, written_group) = it->second;
                 bool member_exists = snapshot.address(written_object) != nullptr;
-                if (!operator_segments.empty()) {
-                    auto chosen = pick_by_rank(config, operator_segments);
-                    if (!pin || pin->segment != chosen) {
+                if (!operator_groups.empty()) {
+                    auto chosen = pick_by_rank(config, operator_groups);
+                    if (!pin || pin->group != chosen) {
                         pin = Pin{chosen, "gui", now};
                         result.new_pins[mac] = *pin;
                         decision.reasons.push_back(std::format("moved to {} in the FortiGate GUI", chosen));
                     }
                 } else if (observed.empty() && member_exists) {
-                    // Taken out of every segment group but the object kept: the operator wants it out of
-                    // where it was; the safe place is the default segment.
-                    if (!pin || pin->segment != config.default_segment) {
-                        pin = Pin{config.default_segment, "gui", now};
+                    // Taken out of every group group but the object kept: the operator wants it out of
+                    // where it was; the safe place is the default group.
+                    if (!pin || pin->group != config.default_group) {
+                        pin = Pin{config.default_group, "gui", now};
                         result.new_pins[mac] = *pin;
-                        decision.reasons.push_back(std::format("removed from {} in the FortiGate GUI; default segment", written_segment));
+                        decision.reasons.push_back(std::format("removed from {} in the FortiGate GUI; default group", written_group));
                     }
                 } else if (observed.empty() && !member_exists && pin && pin->source == "gui") {
                     // The operator deleted the object: back to automatic classification.
@@ -248,10 +248,10 @@ namespace fph {
                     pin.reset();
                     decision.reasons.push_back(std::format("{} was deleted in the GUI; classification is automatic again", written_object));
                 }
-            } else if (!operator_segments.empty()) {
+            } else if (!operator_groups.empty()) {
                 // Placed by the operator before the companion ever wrote anything for it.
-                auto chosen = pick_by_rank(config, operator_segments);
-                if (!pin || pin->segment != chosen) {
+                auto chosen = pick_by_rank(config, operator_groups);
+                if (!pin || pin->group != chosen) {
                     pin = Pin{chosen, "gui", now};
                     result.new_pins[mac] = *pin;
                     decision.reasons.push_back(std::format("placed in {} by the operator", chosen));
@@ -265,11 +265,11 @@ namespace fph {
 
             // 2-5.
             if (auto it = config.assignments.find(mac); it != config.assignments.end()) {
-                decision.segment = it->second;
+                decision.group = it->second;
                 decision.source = "assignment";
                 decision.reasons.push_back("explicit assignment in config.json");
-            } else if (pin && config.segment(pin->segment)) {
-                decision.segment = pin->segment;
+            } else if (pin && config.group(pin->group)) {
+                decision.group = pin->group;
                 decision.source = "pin";
                 decision.detail = pin->source;
                 decision.reasons.push_back(pin->source == "gui" ? "operator placement in the FortiGate GUI"
@@ -279,36 +279,36 @@ namespace fph {
                 const auto& top = decision.matches.front();
                 std::vector<std::string> rivals;
                 for (const auto& m: decision.matches)
-                    if (m.priority == top.priority) add_unique(rivals, m.segment);
+                    if (m.priority == top.priority) add_unique(rivals, m.group);
                 if (rivals.size() > 1) {
-                    decision.segment = config.default_segment;
+                    decision.group = config.default_group;
                     decision.source = "ambiguous";
                     std::string list;
                     for (const auto& s: rivals) list += (list.empty() ? "" : ", ") + s;
-                    decision.reasons.push_back(std::format("rules of equal priority {} disagree ({}); default segment until resolved",
+                    decision.reasons.push_back(std::format("rules of equal priority {} disagree ({}); default group until resolved",
                                                            top.priority, list));
                 } else {
-                    decision.segment = top.segment;
+                    decision.group = top.group;
                     decision.source = "rule";
                     decision.detail = top.rule;
                     decision.reasons.push_back(std::format("{} rule {} (priority {})", top.native ? "native" : "config", top.rule,
                                                            top.priority));
                 }
             } else {
-                decision.segment = config.default_segment;
+                decision.group = config.default_group;
                 decision.source = "default";
                 decision.reasons.push_back("no rule matched");
             }
 
-            if (result.unusable_segments.contains(decision.segment)) {
-                decision.reasons.push_back(std::format("segment {} is not managed (name clash); default segment", decision.segment));
-                decision.segment = config.default_segment;
+            if (result.unusable_groups.contains(decision.group)) {
+                decision.reasons.push_back(std::format("group {} is not managed (name clash); default group", decision.group));
+                decision.group = config.default_group;
             }
             if (!result.overlaps.empty() && result.overlaps.back().mac == mac) {
                 auto& overlap = result.overlaps.back();
-                overlap.winner = decision.segment;
+                overlap.winner = decision.group;
                 overlap.why = std::format("{} ({}); until the extra placements are removed, FortiGate policies match "
-                                          "whichever segment's policy comes first",
+                                          "whichever group's policy comes first",
                                           decision.source, decision.reasons.empty() ? "" : decision.reasons.back());
             }
             result.decisions.push_back(std::move(decision));
