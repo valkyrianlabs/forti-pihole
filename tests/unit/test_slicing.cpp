@@ -6,6 +6,8 @@
 #include <classify.hpp>
 #include <slicing.hpp>
 
+#include <algorithm>
+
 using namespace fph;
 using namespace fph::test;
 

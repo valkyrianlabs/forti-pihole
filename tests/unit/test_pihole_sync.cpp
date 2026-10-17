@@ -5,6 +5,8 @@
 
 #include <pihole_sync.hpp>
 
+#include <algorithm>
+
 using namespace fph;
 using namespace fph::test;
 

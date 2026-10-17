@@ -14,6 +14,7 @@
 #include <sync.hpp>
 
 #include <chrono>
+#include <memory>
 #include <thread>
 
 #include <forti_piholed_version.hpp>

@@ -10,6 +10,7 @@
 
 #include <forti/engine/catalog.hpp>
 
+#include <algorithm>
 #include <cstdlib>
 
 namespace fph::daemon::test {
@@ -45,10 +46,12 @@ namespace fph::daemon::test {
                     for (const auto& option: spec["options"]) found = found || option["name"] == value;
                     EXPECT_TRUE(found) << where << "." << key << " = " << value;
                 }
-                if (value.is_string() && spec.contains("size"))
+                if (value.is_string() && spec.contains("size")) {
                     EXPECT_LE(value.get<std::string>().size(), spec["size"].get<std::size_t>()) << where << "." << key;
-                if (value.is_number_integer() && spec.contains("max-value"))
+                }
+                if (value.is_number_integer() && spec.contains("max-value")) {
                     EXPECT_LE(value.get<long long>(), spec["max-value"].get<long long>()) << where << "." << key;
+                }
                 if (value.is_array())
                     for (const auto& entry: value) expect_snapshot(entry, spec["children"], where + "." + key);
             }

@@ -98,10 +98,17 @@ TEST(PiholeErrors, MapsStatusesToTypes) {
     EXPECT_EQ(duplicate.hint(), "The item is already present");
     caught<ConflictError>(400, R"({"error": {"key": "database_error", "message": "Could not add to gravity database",
                                             "hint": "UNIQUE constraint failed: client.ip"}})");
-    // A foreign-key failure is not a duplicate.
-    auto fk = caught<ApiError>(400, R"({"error": {"key": "database_error", "message": "Could not add to gravity database",
-                                                 "hint": "FOREIGN KEY constraint failed"}})");
-    EXPECT_EQ(dynamic_cast<const ConflictError*>(&fk), nullptr);
+    // A foreign-key failure is not a duplicate. (Caught by type: caught<ApiError> returns a copy, which
+    // could never be a ConflictError whatever was thrown.)
+    try {
+        throw_api_error("POST /api/clients", 400, R"({"error": {"key": "database_error", "message": "Could not add to gravity database",
+                                                             "hint": "FOREIGN KEY constraint failed"}})");
+        ADD_FAILURE() << "no error thrown";
+    } catch (const ConflictError& error) {
+        ADD_FAILURE() << "a foreign-key failure classified as a duplicate: " << error.what();
+    } catch (const ApiError& error) {
+        EXPECT_EQ(error.status(), 400);
+    }
 }
 
 TEST(PiholeErrors, NonApiReplies) {

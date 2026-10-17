@@ -47,9 +47,10 @@ namespace fph {
             return out;
         }
 
-        const json& array_or_empty(const json& value) {
-            static const json empty = json::array();
-            return value.is_array() ? value : empty;
+        // By value: callers pass temporaries (`item.value("x", json::array())`) as a range-for's range,
+        // and before C++23's P2718 (GCC < 15) a reference to one would dangle in the loop body.
+        json array_or_empty(json value) {
+            return value.is_array() ? std::move(value) : json::array();
         }
 
         bool contains(const std::vector<std::string>& list, std::string_view value) {

@@ -21,6 +21,7 @@
 #include <forti_pihole_version.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <charconv>
 #include <filesystem>
 #include <format>

@@ -158,9 +158,11 @@ TEST(Household, MoreThanFitsProposesShrinkingThePool) {
     EXPECT_EQ(best.slices, std::vector<Cidr>{*Cidr::parse("192.168.1.128/26")});
     EXPECT_EQ(best.detail, "shrink pool 1 from 192.168.1.2-192.168.1.200 to 192.168.1.2-192.168.1.127 to free 192.168.1.128/26");
     // Shrinking from the bottom would hit reservations and every lease: never proposed as free.
-    for (const auto& alt: g.alternatives)
-        if (alt.pool_change && alt.pool_change->kind == PoolChange::Kind::shrink && alt.pool_change->result.lo != lan(2))
+    for (const auto& alt: g.alternatives) {
+        if (alt.pool_change && alt.pool_change->kind == PoolChange::Kind::shrink && alt.pool_change->result.lo != lan(2)) {
             EXPECT_FALSE(alt.disturbed.empty()) << alt.detail;
+        }
+    }
 
     // Allowed to propose pool changes, the planner takes that shrink itself.
     input.policy.allow_pool_changes = true;

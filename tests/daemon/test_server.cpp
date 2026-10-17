@@ -9,7 +9,9 @@
 #include <chrono>
 #include <condition_variable>
 #include <csignal>
+#include <memory>
 #include <mutex>
+#include <sstream>
 #include <thread>
 
 #include <arpa/inet.h>

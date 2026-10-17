@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 
 #include <format>
+#include <memory>
 #include <optional>
 
 using namespace fph::pihole;

@@ -5,6 +5,8 @@
 
 #include <references.hpp>
 
+#include <algorithm>
+
 using namespace fph;
 using namespace fph::test;
 

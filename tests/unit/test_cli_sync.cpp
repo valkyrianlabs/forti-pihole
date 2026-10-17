@@ -7,6 +7,10 @@
 #include <operation.hpp>
 #include <state.hpp>
 
+#include <algorithm>
+#include <memory>
+#include <sstream>
+
 using namespace fph;
 using namespace fph::test;
 

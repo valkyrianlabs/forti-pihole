@@ -5,6 +5,9 @@
 
 #include <operation.hpp>
 
+#include <map>
+#include <set>
+
 using namespace fph;
 using namespace fph::test;
 

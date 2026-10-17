@@ -8,6 +8,8 @@
 
 #include <sys/stat.h>
 
+#include <sstream>
+
 namespace fph::daemon::test {
 
     using json = nlohmann::json;

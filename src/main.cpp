@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <memory>
 #include <thread>
 
 #include <sys/resource.h>

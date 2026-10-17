@@ -6,6 +6,8 @@
 #include <classify.hpp>
 #include <reconcile.hpp>
 
+#include <algorithm>
+
 using namespace fph;
 using namespace fph::test;
 

@@ -1,5 +1,6 @@
 #include "net.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <cstring>
 

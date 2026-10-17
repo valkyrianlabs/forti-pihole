@@ -8,6 +8,9 @@
 #include <executors.hpp>
 #include <migrate.hpp>
 
+#include <algorithm>
+#include <memory>
+
 using namespace fph;
 using namespace fph::test;
 

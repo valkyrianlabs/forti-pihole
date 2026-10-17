@@ -18,6 +18,7 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
+#include <memory>
 #include <sstream>
 
 #include <stdlib.h>

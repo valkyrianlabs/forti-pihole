@@ -7,6 +7,8 @@
 #include <guard.hpp>
 #include <mac.hpp>
 
+#include <memory>
+
 using namespace fph;
 using namespace fph::test;
 
