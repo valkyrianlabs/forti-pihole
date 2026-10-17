@@ -160,10 +160,18 @@ namespace fph {
             if (client.managed()) {
                 auto cidr = normalized_cidr(client.client);
                 if (wanted.contains(cidr)) continue;
-                if (options.prune) plan.changes.push_back({"delete", cidr, {}, client.comment, "no network implies it", client.id, {}});
+                // Ours, for a network that is still configured (its subnet or slices changed): replaced
+                // now. For a network that is gone: reported, deleted only with --prune.
+                bool replaced = false;
+                for (const auto& network: config.networks)
+                    if (network.mode != Network::Mode::observe && client.comment.starts_with(std::string(marker) + ": " + network.interface + " "))
+                        replaced = true;
+                if (replaced || options.prune)
+                    plan.changes.push_back({"delete", cidr, {}, client.comment,
+                                            replaced ? "its network's subnet or slices changed" : "no network implies it", client.id, {}});
                 else
                     plan.findings.push_back({"stale-managed", client.client,
-                                             "managed entry no configured network implies any more; `sync --prune` removes it", client.id});
+                                             "managed entry for a network no longer configured; `sync --prune` removes it", client.id});
                 continue;
             }
             if (!c) {
@@ -194,7 +202,16 @@ namespace fph {
                 break;
             }
         }
-        (void) snapshot;
+        // Interfaces with a subnet and a DHCP server that no network names yet: offer a mapping.
+        for (const auto& [name, interface]: snapshot.interfaces) {
+            if (config.network(name) || interface.role == "wan" || to_cidr(interface.ip).empty() || !snapshot.dhcp_for(name)) continue;
+            bool vlan = interface.type == "vlan" || interface.type == "emac-vlan";
+            plan.findings.push_back({"new-network", name,
+                                     std::format("{} ({}{}) is not configured; suggested mode {}: add it to \"networks\" (forti-pihole setup does)",
+                                                 name, to_cidr(interface.ip), vlan ? std::format(", VLAN {}", interface.vlanid) : "",
+                                                 vlan ? "subnet" : "slices"),
+                                     0});
+        }
         return plan;
     }
 

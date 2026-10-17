@@ -1,5 +1,6 @@
 #include "sync.hpp"
 
+#include "alloc/cidr.hpp"
 #include "executors.hpp"
 #include "reassociate.hpp"
 #include "report.hpp"
@@ -236,6 +237,26 @@ namespace fph {
                     po.prune = options.prune;
                     po.complement = complement_strings;
                     r.pihole = plan_pihole(config, r.snapshot, api->view(), po);
+                    // How Pi-hole resolves each managed range today (first address), with FTL's own rules:
+                    // a mismatch means an operator entry shadows it, or the entry is not there yet.
+                    for (const auto& d: r.pihole->desired) {
+                        auto cidr = alloc::Cidr::parse(d.cidr);
+                        if (!cidr) continue;
+                        auto probe = alloc::format_ipv4(cidr->prefix >= 31 ? cidr->network : cidr->network + 1);
+                        auto groups = api->effective_groups(probe);
+                        auto view = api->view();
+                        const PiholeGroupInfo* want = view.group(d.pihole_group);
+                        bool pending = std::ranges::any_of(r.pihole->changes, [&](const PiholeChange& c) { return c.cidr == d.cidr; });
+                        if (want && groups != std::vector<int>{want->id} && !pending) {
+                            std::string names;
+                            for (int id: groups) {
+                                const PiholeGroupInfo* g = view.group(id);
+                                names += (names.empty() ? "" : ", ") + (g ? g->name : std::to_string(id));
+                            }
+                            r.pihole->findings.push_back({"resolution", d.cidr,
+                                                          std::format("Pi-hole resolves {} to [{}], not \"{}\"", probe, names, d.pihole_group), 0});
+                        }
+                    }
                 }
             } catch (const std::exception& e) {
                 r.pihole_error = e.what();

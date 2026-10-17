@@ -132,3 +132,27 @@ TEST(PiholeSync, HybridUsesTheComplementUnlessMostSpecificWins) {
     for (const auto& c: plan.changes) cidrs.push_back(c.cidr + "->" + c.pihole_group);
     EXPECT_EQ(cidrs, (std::vector<std::string>{"198.51.100.128/26->TV", "198.51.100.128/25->IOT"}));
 }
+
+TEST(PiholeSync, ChangedSubnetReplacesItsOwnEntry) {
+    // vlan30 moved from 198.51.100.0/25 to 198.51.100.128/25: the managed entry follows.
+    auto config = config_with(json::parse(R"([{"interface": "vlan30", "mode": "subnet", "group": "iot"}])"));
+    auto view = household();
+    view.clients.push_back({40, "198.51.100.0/25", std::string(marker) + ": vlan30 subnet", {5}});
+    auto plan = plan_pihole(config, snapshot_with_vlan(), view, {});
+    std::vector<std::string> kinds;
+    for (const auto& c: plan.changes) kinds.push_back(c.kind + " " + c.cidr);
+    EXPECT_EQ(kinds, (std::vector<std::string>{"create 198.51.100.128/25", "delete 198.51.100.0/25"}));
+}
+
+TEST(PiholeSync, SuggestsUnconfiguredNetworks) {
+    FakeGateway fake;
+    populate(fake);
+    fake.interfaces.push_back({{"name", "vlan40"}, {"type", "vlan"}, {"role", "lan"}, {"ip", "203.0.113.1 255.255.255.0"},
+                               {"interface", "internal"}, {"vlanid", 40}, {"secondaryip", json::array()}});
+    fake.dhcp.push_back({{"id", 4}, {"interface", "vlan40"}, {"dns-service", "specify"}, {"dns-server1", "198.51.100.2"}});
+    auto config = config_with(json::parse(R"([{"interface": "internal", "mode": "observe"}])"));
+    auto plan = plan_pihole(config, collect(fake, config, now), household(), {});
+    EXPECT_TRUE(std::ranges::any_of(plan.findings, [](const auto& f) {
+        return f.kind == "new-network" && f.client == "vlan40" && f.detail.find("subnet") != std::string::npos;
+    }));
+}
