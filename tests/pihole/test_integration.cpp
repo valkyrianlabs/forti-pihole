@@ -68,13 +68,15 @@ namespace {
 
         std::size_t sent(std::string_view method, std::string_view path) {
             std::size_t n = 0;
-            for (const auto& r: state()["requests"])
+            const json snapshot = state();   // named: a range over state()["requests"] would outlive it
+            for (const auto& r: snapshot["requests"])
                 if (r["method"] == method && r["path"] == path) ++n;
             return n;
         }
 
         json mock_client(std::string_view client) {
-            for (const auto& c: state()["clients"])
+            const json snapshot = state();   // named: a range over state()["clients"] would outlive it
+            for (const auto& c: snapshot["clients"])
                 if (c["client"] == client) return c;
             return nullptr;
         }

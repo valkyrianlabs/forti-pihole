@@ -41,7 +41,8 @@ namespace fph {
     State State::from_json(const json& root) {
         if (!root.is_object()) throw StateError("state: not an object");
         State state;
-        for (const auto& [mac, item]: root.value("devices", json::object()).items()) {
+        const json devices = root.value("devices", json::object());   // named: .items() only refers to it
+        for (const auto& [mac, item]: devices.items()) {
             DeviceRecord record;
             record.label = str(item, "label");
             record.hostname = str(item, "hostname");
@@ -56,7 +57,8 @@ namespace fph {
             record.written_group = str(item, "written_group");
             state.devices.emplace(mac, std::move(record));
         }
-        for (const auto& [mac, item]: root.value("pins", json::object()).items())
+        const json pins = root.value("pins", json::object());   // named: .items() only refers to it
+        for (const auto& [mac, item]: pins.items())
             state.pins.emplace(mac, Pin{str(item, "group"), str(item, "source"), num(item, "at")});
         for (const auto& item: root.value("candidates", json::array())) {
             Candidate candidate;
@@ -75,7 +77,8 @@ namespace fph {
             if (mac.is_string()) state.retire_now.insert(mac.get<std::string>());
         state.last_apply = num(root, "last_apply");
         state.last_plan = str(root, "last_plan");
-        for (const auto& [mac, item]: root.value("adoptions", json::object()).items()) {
+        const json adoptions = root.value("adoptions", json::object());   // named: .items() only refers to it
+        for (const auto& [mac, item]: adoptions.items()) {
             Adoption a;
             for (const auto& o: item.value("objects", json::array()))
                 if (o.is_string()) a.objects.insert(o.get<std::string>());
@@ -87,7 +90,8 @@ namespace fph {
             Pending pending;
             pending.plan_id = str(*it, "plan_id");
             pending.at = num(*it, "at");
-            for (const auto& [mac, entry]: it->value("written", json::object()).items())
+            const json written = it->value("written", json::object());   // named: .items() only refers to it
+            for (const auto& [mac, entry]: written.items())
                 pending.written[mac] = {str(entry, "object"), str(entry, "group")};
             for (const auto& mac: it->value("retired", json::array()))
                 if (mac.is_string()) pending.retired.push_back(mac.get<std::string>());
