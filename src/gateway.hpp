@@ -47,7 +47,8 @@ namespace fph {
 
     // A forti-engine on the user's forti home, with the write guard (guard.hpp) wrapped around the
     // SDK transport so nothing outside the managed objects can be written even by a bug here.
-    std::unique_ptr<Gateway> engine_gateway(const Config& config);
+    struct WritePermits;
+    std::unique_ptr<Gateway> engine_gateway(const Config& config, std::shared_ptr<WritePermits> permits = nullptr);
 
 }  // namespace fph
 

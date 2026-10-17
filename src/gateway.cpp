@@ -31,14 +31,15 @@ namespace fph {
 
     }  // namespace
 
-    std::unique_ptr<Gateway> engine_gateway(const Config& config) {
+    std::unique_ptr<Gateway> engine_gateway(const Config& config, std::shared_ptr<WritePermits> permits) {
+        if (!permits) permits = std::make_shared<WritePermits>();
         forti::engine::Options options;
         options.actor = "forti-pihole";
         std::string prefix = config.prefix;
         // The guard sits under the engine, around the SDK's own libcurl transport, so it sees every
         // request the engine makes, including the ones plan and apply make on their own.
-        options.transport = [prefix](const fortiapi::Config& sdk) -> std::shared_ptr<fortiapi::Transport> {
-            return std::make_shared<GuardTransport>(std::make_shared<fortiapi::CurlTransport>(sdk), prefix);
+        options.transport = [prefix, permits](const fortiapi::Config& sdk) -> std::shared_ptr<fortiapi::Transport> {
+            return std::make_shared<GuardTransport>(std::make_shared<fortiapi::CurlTransport>(sdk), prefix, permits);
         };
         return std::make_unique<EngineGateway>(std::move(options));
     }

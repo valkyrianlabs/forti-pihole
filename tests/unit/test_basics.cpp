@@ -223,3 +223,66 @@ TEST(Config, PiholeSection) {
     j["pihole"] = {{"url", "https://x"}, {"password", "nope"}};   // secrets never live in the config file
     EXPECT_THROW(Config::from_json(j), ConfigError);
 }
+
+TEST(Guard, ReservationsRevokesAndAdoptedObjectsOnlyWithPermits) {
+    using fortiapi::Method;
+    const std::string base = "https://fortigate.test:8443/api/v2/";
+    const std::string marked = std::string(R"({"id":0,"mac":"00:00:5e:00:53:03","ip":"192.0.2.208","description":")") +
+                               std::string(marker) + R"(: stick"})";
+    WritePermits none;
+    EXPECT_NE(refuse_write(Method::Post, base + "cmdb/system.dhcp/server/1/reserved-address", marked, "fp-", none), "");
+    EXPECT_NE(refuse_write(Method::Post, base + "monitor/system/dhcp/revoke", R"({"ip":["192.0.2.13"]})", "fp-", none), "");
+    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/firewall/address/Stick%20IP", R"({"subnet":"192.0.2.208 255.255.255.255"})", "fp-", none), "");
+
+    WritePermits p;
+    p.dhcp_servers = {1};
+    p.reservations = {{1, 12}};
+    p.address_objects = {"Stick IP"};
+    p.revoke_ips = {"192.0.2.13"};
+    EXPECT_EQ(refuse_write(Method::Post, base + "cmdb/system.dhcp/server/1/reserved-address?vdom=root", marked, "fp-", p), "");
+    EXPECT_NE(refuse_write(Method::Post, base + "cmdb/system.dhcp/server/1/reserved-address", R"({"mac":"x","ip":"y"})", "fp-", p), "");
+    EXPECT_EQ(refuse_write(Method::Put, base + "cmdb/system.dhcp/server/1/reserved-address/12", "{}", "fp-", p), "");
+    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/system.dhcp/server/1/reserved-address/13", "{}", "fp-", p), "");   // not this one
+    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/system.dhcp/server/1", "{}", "fp-", p), "");                        // never the whole list
+    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/system.dhcp/server/2/reserved-address/12", "{}", "fp-", p), "");
+    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/system.dhcp/server/1/ip-range/1", "{}", "fp-", p), "");
+    EXPECT_EQ(refuse_write(Method::Post, base + "monitor/system/dhcp/revoke", R"({"ip":["192.0.2.13"]})", "fp-", p), "");
+    EXPECT_NE(refuse_write(Method::Post, base + "monitor/system/dhcp/revoke", R"({"ip":["192.0.2.13","192.0.2.14"]})", "fp-", p), "");
+    EXPECT_NE(refuse_write(Method::Post, base + "monitor/system/dhcp/revoke", R"({})", "fp-", p), "");
+    EXPECT_EQ(refuse_write(Method::Put, base + "cmdb/firewall/address/Stick%20IP", R"({"subnet":"192.0.2.208 255.255.255.255"})", "fp-", p), "");
+    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/firewall/address/Stick%20IP", R"({"subnet":"0.0.0.0 0.0.0.0","comment":"x"})", "fp-", p), "");
+    EXPECT_NE(refuse_write(Method::Delete, base + "cmdb/firewall/address/Stick%20IP", "", "fp-", p), "");
+    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/firewall/policy/17", "{}", "fp-", p), "");   // policies: never
+
+    // The same rules at the operation level.
+    auto config = test_config();
+    Snapshot snapshot;
+    auto ops = [](json op) { return json::array({std::move(op)}); };
+    json create = {{"op", "create"}, {"resource", "system.dhcp/server"}, {"parent", "1"}, {"child", "reserved-address"},
+                   {"object", {{"mac", stick}, {"ip", "192.0.2.208"}, {"description", std::string(marker) + ": stick"}}}};
+    EXPECT_THROW(check_operations(ops(create), snapshot, config), GuardViolation);
+    EXPECT_NO_THROW(check_operations(ops(create), snapshot, config, p));
+    json steal = {{"op", "update"}, {"resource", "system.dhcp/server"}, {"parent", "1"}, {"child", "reserved-address"}, {"key", "12"},
+                  {"set", {{"mac", "00:00:5e:00:53:99"}}}};
+    EXPECT_THROW(check_operations(ops(steal), snapshot, config, p), GuardViolation);
+    json whole = {{"op", "update"}, {"resource", "system.dhcp/server"}, {"key", "1"}, {"set", {{"reserved-address", json::array()}}}};
+    EXPECT_THROW(check_operations(ops(whole), snapshot, config, p), GuardViolation);
+    json follow = {{"op", "update"}, {"resource", "firewall/address"}, {"key", "Stick IP"}, {"set", {{"subnet", "192.0.2.208 255.255.255.255"}}}};
+    EXPECT_NO_THROW(check_operations(ops(follow), snapshot, config, p));
+    EXPECT_THROW(check_operations(ops(follow), snapshot, config), GuardViolation);
+    json revoke = {{"op", "action"}, {"resource", "monitor/system/dhcp/revoke"}, {"body", {{"ip", {"192.0.2.13"}}}}};
+    EXPECT_NO_THROW(check_operations(ops(revoke), snapshot, config, p));
+    revoke["body"]["ip"] = {"192.0.2.99"};
+    EXPECT_THROW(check_operations(ops(revoke), snapshot, config, p), GuardViolation);
+}
+
+TEST(Guard, PermitScopeWithdrawsAfterUse) {
+    auto shared = std::make_shared<WritePermits>();
+    {
+        WritePermits granted;
+        granted.revoke_ips = {"192.0.2.13"};
+        PermitScope scope(shared, granted);
+        EXPECT_FALSE(shared->empty());
+    }
+    EXPECT_TRUE(shared->empty());
+}

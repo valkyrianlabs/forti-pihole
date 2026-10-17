@@ -40,15 +40,79 @@ namespace fph {
             return it != object.end() && it->is_string() && it->get<std::string>().find(marker) != std::string::npos;
         }
 
+        bool has_marker_in(const json& object, const char* key) {
+            auto it = object.find(key);
+            return it != object.end() && it->is_string() && it->get<std::string>().find(marker) != std::string::npos;
+        }
+
+        bool parse_id(std::string_view text, std::uint64_t& value) {
+            if (text.empty() || text.size() > 10) return false;
+            value = 0;
+            for (char c: text) {
+                if (c < '0' || c > '9') return false;
+                value = value * 10 + static_cast<std::uint64_t>(c - '0');
+            }
+            return true;
+        }
+
+        // Single reservation entries on permitted servers (engine child operations).
+        void check_reservation_op(const json& op, const std::string& where, const Snapshot& snapshot, const WritePermits& permits) {
+            auto kind = op.value("op", std::string());
+            if (op.value("child", std::string()) != "reserved-address")
+                throw GuardViolation(where + ": only single reserved-address entries of a DHCP server may be written");
+            std::uint64_t server = 0;
+            auto parent = op.contains("parent") ? (op["parent"].is_string() ? op["parent"].get<std::string>() : op["parent"].dump()) : std::string();
+            if (!parse_id(parent, server) || !permits.dhcp_servers.contains(server))
+                throw GuardViolation(std::format("{}: reservations on DHCP server {} are not permitted now", where, parent));
+            if (kind == "create") {
+                if (!has_marker_in(op.value("object", json::object()), "description"))
+                    throw GuardViolation(where + ": a new reservation must carry the ownership marker");
+                return;
+            }
+            if (kind != "update" && kind != "delete") throw GuardViolation(std::format("{}: operation \"{}\" is not allowed", where, kind));
+            std::uint64_t entry = 0;
+            auto key = op.contains("key") ? (op["key"].is_string() ? op["key"].get<std::string>() : op["key"].dump()) : std::string();
+            if (!parse_id(key, entry) || !permits.reservations.contains({server, entry}))
+                throw GuardViolation(std::format("{}: reservation {} on server {} is not permitted", where, key, server));
+            if (kind == "update") {
+                const auto& set = op.value("set", json::object());
+                if (set.contains("description") && !has_marker_in(set, "description"))
+                    throw GuardViolation(where + ": an update must keep the ownership marker in the description");
+                if (set.contains("mac")) throw GuardViolation(where + ": a reservation's MAC never changes (that would hand it to another device)");
+            }
+            (void) snapshot;
+        }
+
     }  // namespace
 
-    void check_operations(const json& operations, const Snapshot& snapshot, const Config& config) {
+    void check_operations(const json& operations, const Snapshot& snapshot, const Config& config, const WritePermits& permits) {
         if (!operations.is_array()) throw GuardViolation("operations must be an array");
         for (std::size_t i = 0; i < operations.size(); ++i) {
             const auto& op = operations[i];
             auto where = std::format("operation {}", i);
             auto kind = op.value("op", std::string());
             auto resource = op.value("resource", std::string());
+            if (resource == "system.dhcp/server" || resource == "cmdb/system.dhcp/server") {
+                check_reservation_op(op, where, snapshot, permits);
+                continue;
+            }
+            if (resource == "monitor/system/dhcp/revoke") {
+                if (kind != "action") throw GuardViolation(where + ": revoke is an action");
+                const auto& ips = op.value("body", json::object()).value("ip", json::array());
+                if (!ips.is_array() || ips.empty()) throw GuardViolation(where + ": revoke must list the addresses");
+                for (const auto& ip: ips)
+                    if (!ip.is_string() || !permits.revoke_ips.contains(ip.get<std::string>()))
+                        throw GuardViolation(std::format("{}: revoking {} is not permitted", where, ip.dump()));
+                continue;
+            }
+            if ((resource == "firewall/address" || resource == "cmdb/firewall/address") && kind == "update" &&
+                permits.address_objects.contains(op.value("key", std::string()))) {
+                // An adopted host object following its device: only its address changes.
+                const auto& set = op.value("set", json::object());
+                if (set.size() != 1 || !set.contains("subnet") || op.contains("clear"))
+                    throw GuardViolation(std::format("{}: an adopted object may only have its subnet changed", where));
+                continue;
+            }
             if (!is_writable(resource)) throw GuardViolation(std::format("{}: {} is not a resource forti-pihole may write", where, resource));
             bool group = resource.ends_with("addrgrp");
             if (kind == "create") {
@@ -78,12 +142,56 @@ namespace fph {
         }
     }
 
-    std::string refuse_write(fortiapi::Method method, std::string_view url, std::string_view body, std::string_view prefix) {
+    std::string refuse_write(fortiapi::Method method, std::string_view url, std::string_view body, std::string_view prefix,
+                             const WritePermits& permits) {
         if (method == fortiapi::Method::Get) return {};
         auto api = url.find("/api/v2/");
         if (api == std::string_view::npos) return "not a FortiOS API URL";
         auto path = url.substr(api + 8);
         path = path.substr(0, path.find('?'));
+
+        // Permitted DHCP reservation entries: cmdb/system.dhcp/server/<id>/reserved-address[/<entry>].
+        if (path.starts_with("cmdb/system.dhcp/server/")) {
+            auto rest = path.substr(24);
+            auto slash = rest.find('/');
+            if (slash == std::string_view::npos) return std::format("{} of a whole DHCP server", fortiapi::to_string(method));
+            std::uint64_t server = 0;
+            if (!parse_id(rest.substr(0, slash), server)) return "DHCP server key is not a number";
+            rest = rest.substr(slash + 1);
+            constexpr std::string_view child = "reserved-address";
+            if (!rest.starts_with(child)) return std::format("DHCP server attribute other than {}", child);
+            rest = rest.substr(child.size());
+            if (!permits.dhcp_servers.contains(server)) return std::format("reservations on DHCP server {} are not permitted now", server);
+            if (rest.empty()) {
+                if (method != fortiapi::Method::Post) return "only single reservation entries may be written";
+                auto parsed = json::parse(body, nullptr, false);
+                if (!parsed.is_object() || !has_marker_in(parsed, "description")) return "a new reservation must carry the ownership marker";
+                return {};
+            }
+            if (rest.front() != '/' || rest.find('/', 1) != std::string_view::npos) return std::format("nested path {}", path);
+            std::uint64_t entry = 0;
+            if (!parse_id(rest.substr(1), entry)) return "reservation key is not a number";
+            if (method == fortiapi::Method::Post) return "POST to a reservation entry path";
+            if (!permits.reservations.contains({server, entry})) return std::format("reservation {} on server {} is not permitted", entry, server);
+            return {};
+        }
+        if (path == "monitor/system/dhcp/revoke") {
+            if (method != fortiapi::Method::Post) return "revoke is a POST";
+            auto parsed = json::parse(body, nullptr, false);
+            const auto ips = parsed.is_object() ? parsed.value("ip", json::array()) : json::array();
+            if (!ips.is_array() || ips.empty()) return "revoke without addresses";
+            for (const auto& ip: ips)
+                if (!ip.is_string() || !permits.revoke_ips.contains(ip.get<std::string>())) return "revoke of an address that is not permitted";
+            return {};
+        }
+        if (path.starts_with("cmdb/firewall/address/") && method == fortiapi::Method::Put) {
+            auto rest = path.substr(22);
+            if (rest.find('/') == std::string_view::npos && permits.address_objects.contains(percent_decode(rest))) {
+                auto parsed = json::parse(body, nullptr, false);
+                if (!parsed.is_object() || parsed.size() != 1 || !parsed.contains("subnet")) return "an adopted object may only have its subnet changed";
+                return {};
+            }
+        }
         for (auto w: writable) {
             std::string collection = "cmdb/" + std::string(w);
             if (path == collection) {
@@ -96,7 +204,7 @@ namespace fph {
             }
             if (path.starts_with(collection + "/")) {
                 auto rest = path.substr(collection.size() + 1);
-                // Exactly one more group: the object. Child-table paths are not allowed.
+                // Exactly one more path segment: the object. Child-table paths are not allowed here.
                 if (rest.find('/') != std::string_view::npos) return std::format("nested path {}", path);
                 auto name = percent_decode(rest);
                 if (!name.starts_with(prefix)) return std::format("{} of \"{}\" (not {}*)", fortiapi::to_string(method), name, prefix);
@@ -108,7 +216,7 @@ namespace fph {
     }
 
     fortiapi::HttpResponse GuardTransport::perform(const fortiapi::HttpRequest& request) {
-        if (auto why = refuse_write(request.method, request.url, request.body, prefix_); !why.empty())
+        if (auto why = refuse_write(request.method, request.url, request.body, prefix_, *permits_); !why.empty())
             // Thrown before the inner transport sees the request: nothing reaches the device.
             throw GuardViolation("write guard refused a request: " + why);
         return inner_->perform(request);
