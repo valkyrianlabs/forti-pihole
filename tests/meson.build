@@ -30,6 +30,24 @@ if gtest_dep.found()
                              dependencies : [fph_alloc_dep, gtest_dep],
                              implicit_include_directories : false)
     test('alloc', alloc_tests, suite : 'unit')
+    # forti-piholed (src/daemon): parser, auth, scheduler, state, stitch operations, and real sockets
+    # on 127.0.0.1 only. The stitch test also checks forti-api's 7.4.8 schema snapshot when a source
+    # checkout of forti-api provides it (package builds use the installed SDK, which has none).
+    daemon_env = asan_options != '' ? {'ASAN_OPTIONS' : asan_options} : {}
+    schema_dir = meson.project_source_root() / 'subprojects' / 'forti-api' / 'codegen' / 'schema' / '7.4.8' / 'cmdb' / 'system'
+    if fs.exists(schema_dir / 'automation-action.json')
+        daemon_env += {'FPHD_SCHEMA_DIR' : schema_dir}
+    endif
+    daemon_tests = executable('daemonTests',
+                              'daemon/test_http.cpp',
+                              'daemon/test_auth.cpp',
+                              'daemon/test_scheduler.cpp',
+                              'daemon/test_state.cpp',
+                              'daemon/test_stitch.cpp',
+                              'daemon/test_server.cpp',
+                              dependencies : [fphd_core_dep, gtest_dep],
+                              implicit_include_directories : false)
+    test('daemon', daemon_tests, env : daemon_env, suite : 'unit', timeout : 120)
 endif
 
 # The Pi-hole client's tests (tests/pihole/meson.build).

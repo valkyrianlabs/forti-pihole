@@ -38,6 +38,24 @@ status=0
 "$bin" --no-such-option > /dev/null 2>&1 || status=$?
 [ "$status" -eq 2 ] || fail "an unknown option exited $status, expected 2"
 
+# forti-piholed: next to forti-pihole when installed, under daemon/ in a build tree, else on PATH.
+case "$bin" in
+  */*) daemon="$(dirname "$bin")/forti-piholed"
+       [ -x "$daemon" ] || daemon="$(dirname "$bin")/daemon/forti-piholed" ;;
+  *) daemon="forti-piholed" ;;
+esac
+daemon_version="$("$daemon" --version)"
+echo "$daemon_version"
+case "$daemon_version" in
+  "forti-piholed "[0-9]*" (engine forti-cli "[0-9a-f]*", forti-api "[0-9]*")") ;;
+  *) fail "unexpected forti-piholed --version output" ;;
+esac
+"$daemon" --help > "$scratch/daemon-help" 2> "$scratch/stderr" || { cat "$scratch/stderr" >&2; fail "forti-piholed --help exited non-zero"; }
+grep -q -- "/v1/fortigate/events" "$scratch/daemon-help" || fail "forti-piholed --help does not describe the endpoint"
+status=0
+"$daemon" --no-such-option > /dev/null 2>&1 || status=$?
+[ "$status" -eq 2 ] || fail "forti-piholed: an unknown option exited $status, expected 2"
+
 if [ -n "$(find "$FORTI_HOME" "$HOME" -type f 2>/dev/null)" ]; then
   fail "--version / --help wrote files"
 fi

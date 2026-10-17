@@ -24,7 +24,7 @@ namespace fph {
             std::string version() override {
                 if (version_.empty()) {
                     auto info = client_->require_supported_version();
-                    version_ = info.ftl.empty() ? "FTL (unknown)" : "FTL " + info.ftl;
+                    version_ = "FTL " + info.ftl.version.value_or("(unknown)");
                 }
                 return version_;
             }
