@@ -14,16 +14,16 @@
 #   [Service]
 #   Environment=FORTI_HOME=/srv/forti
 #   ExecStart=
-#   ExecStart=/usr/local/bin/forti-pihole apply --quiet --profile fw01
+#   ExecStart=/usr/local/bin/forti-pihole sync --quiet --profile fw01
 [Unit]
-Description=Reconcile FortiGate device segments (forti-pihole apply)
+Description=Synchronize FortiGate device groups and Pi-hole (forti-pihole sync)
 Documentation=https://github.com/valkyrianlabs/forti-pihole
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/forti-pihole apply --quiet
+ExecStart=/usr/bin/forti-pihole sync --quiet
 # A stuck run (device unreachable past the engine's timeouts) must not block the next tick forever.
 TimeoutStartSec=10min
 Nice=10

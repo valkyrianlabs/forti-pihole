@@ -201,7 +201,6 @@ TEST(Config, NetworksAndStrategies) {
     EXPECT_EQ(config.network("vlan30")->mode, Network::Mode::subnet);
     EXPECT_FALSE(config.enabled);                      // nothing is written until the operator says so
     EXPECT_EQ(config.interfaces.size(), 3u);           // defaults to the networks' interfaces
-    EXPECT_EQ(config.slice_name("192.168.1.208/28"), "fp-slice-192.168.1.208-28");
 
     // Host bits, overlaps, subnet mode with slices, slices mode with a mapped base group.
     EXPECT_THROW(Config::from_json(with(json::parse(R"([{"interface": "i", "mode": "slices", "slices": [{"group": "tvs", "cidr": "192.168.1.209/28"}]}])"))), ConfigError);

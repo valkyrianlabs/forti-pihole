@@ -61,7 +61,7 @@ namespace fph {
         enum class Mode { subnet, slices, hybrid, observe };
         std::string interface;
         Mode mode = Mode::observe;
-        std::string group;   // the network's group: unclassified members' group, and the subnet's Pi-hole mapping
+        std::string group;   // the network's group: its Pi-hole mapping covers the subnet (subnet) or the rest of it (hybrid)
         std::vector<SliceSpec> slices;
         // Slices only: may forti-pihole create, move and delete DHCP reservations here? Off until the
         // operator turns it on; a plan is still shown.
@@ -132,7 +132,6 @@ namespace fph {
         [[nodiscard]] std::string addrgrp_name(std::string_view group) const { return prefix + "grp-" + std::string(group); }
         [[nodiscard]] std::string rule_prefix() const { return prefix + "rule-"; }
         [[nodiscard]] std::string device_prefix() const { return prefix + "dev-"; }
-        [[nodiscard]] std::string slice_name(std::string_view cidr) const;   // <prefix>slice-a.b.c.d-n
     };
 
     // The comment every managed object carries; objects without it are an administrator's and are

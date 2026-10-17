@@ -100,6 +100,19 @@ namespace fph {
             PermitScope scope(rt.permits, granted);
             applied = rt.gateway.apply({{"plan_id", plan_id}});
         }
+        // A stored plan from an earlier attempt that the device has since drifted from: plan again from
+        // fresh reads (once). The operations are absolute ("this entry's address is X"), so re-planning
+        // never stacks a change on top of another.
+        if (!applied.value("ok", false) && applied["error"].value("code", std::string()) == "stale_plan" && !previous.value("plan_id", std::string()).empty()) {
+            auto request = base(rt.config);
+            request["operations"] = operations;
+            auto planned = rt.gateway.plan(request);
+            if (!planned.value("ok", false))
+                return {StepOutcome::Kind::failed, json::object(), json(), "re-planning failed: " + planned["error"].value("message", std::string())};
+            plan_id = planned["data"].value("id", std::string());
+            PermitScope scope(rt.permits, granted);
+            applied = rt.gateway.apply({{"plan_id", plan_id}});
+        }
         if (!applied.value("ok", false)) {
             auto code = applied["error"].value("code", std::string());
             if (code == "approval_required")
@@ -109,7 +122,7 @@ namespace fph {
                     std::format("apply {} failed ({}): {}", plan_id, code, applied["error"].value("message", std::string()))};
         }
         json result = {{"plan_id", plan_id}, {"applied", true}, {"record", applied["data"].value("operations", json::array())}};
-        if (applied["data"].contains("rollback")) result["rollback_plan"] = applied["data"]["rollback"].value("plan_id", std::string());
+        if (auto rb = applied["data"].value("rollback", json::object()); rb.is_object() && rb["plan_id"].is_string()) result["rollback_plan"] = rb["plan_id"];
         return {StepOutcome::Kind::done, result, json(), {}};
     }
 

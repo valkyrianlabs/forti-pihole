@@ -74,4 +74,8 @@ endif
 install_data('packaging/config.example.json', 'packaging/daemon.example.json',
              install_dir : get_option('datadir') / 'forti-pihole')
 
+# The agent skill (Claude Code / Codex): copy share/forti-pihole/skill/forti-pihole into the agent's
+# skills directory (docs/guides/runtime.md and the README say how).
+install_data('skill/forti-pihole/SKILL.md', install_dir : get_option('datadir') / 'forti-pihole' / 'skill' / 'forti-pihole')
+
 summary({'engine': 'forti-cli ' + engine_revision, 'forti-api': forti_api_version}, section : 'Built from')

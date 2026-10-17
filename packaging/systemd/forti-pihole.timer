@@ -1,7 +1,7 @@
 # Runs forti-pihole.service every 15 minutes (a systemd *user* timer). Never enabled by the
 # package; opt in with: systemctl --user enable --now forti-pihole.timer
 [Unit]
-Description=Reconcile FortiGate device segments every 15 minutes
+Description=Synchronize FortiGate device groups and Pi-hole every 15 minutes
 Documentation=https://github.com/valkyrianlabs/forti-pihole
 
 [Timer]

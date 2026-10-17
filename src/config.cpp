@@ -181,8 +181,10 @@ namespace fph {
             if (pihole == root.end() || pihole->is_null()) return;
             allow_keys(*pihole, {"url", "ca_bundle", "name", "timeout_ms"}, "config.pihole");
             config.pihole.url = text(*pihole, "url", "config.pihole");
-            if (!config.pihole.url.empty() && !config.pihole.url.starts_with("https://") && !config.pihole.url.starts_with("http://"))
-                throw ConfigError("config.pihole.url: must start with https:// (or http:// on a trusted network)");
+            auto& url = config.pihole.url;
+            bool loopback_http = url.starts_with("http://127.") || url.starts_with("http://localhost") || url.starts_with("http://[::1]");
+            if (!url.empty() && !url.starts_with("https://") && !loopback_http)
+                throw ConfigError("config.pihole.url: must start with https:// (plain http only to a Pi-hole on this host)");
             while (config.pihole.url.ends_with("/")) config.pihole.url.pop_back();
             config.pihole.ca_bundle = text(*pihole, "ca_bundle", "config.pihole");
             config.pihole.name = text(*pihole, "name", "config.pihole", config.pihole.name);
@@ -347,12 +349,6 @@ namespace fph {
         for (const auto& n: networks)
             if (n.interface == interface) return &n;
         return nullptr;
-    }
-
-    std::string Config::slice_name(std::string_view cidr) const {
-        std::string out = prefix + "slice-";
-        for (char c: cidr) out += c == '/' ? '-' : c;
-        return out;
     }
 
     bool Config::is_protected(std::string_view mac) const {

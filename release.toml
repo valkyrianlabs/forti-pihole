@@ -61,6 +61,7 @@ required_paths = [
   "usr/lib/systemd/user/forti-pihole.timer",
   "usr/lib/systemd/user/forti-piholed.service",
   "usr/share/forti-pihole/config.example.json",
+  "usr/share/forti-pihole/skill/forti-pihole/SKILL.md",
   "usr/share/forti-pihole/daemon.example.json",
 ]
 # An executable package: the engine is internal and static, so no headers, libraries or pkg-config

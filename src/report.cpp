@@ -75,8 +75,7 @@ namespace fph {
             groups.push_back(std::move(item));
         }
         json out = {{"taken_at", run.snapshot->taken_at}, {"groups", groups}, {"devices", devices}, {"overlaps", overlaps},
-                    {"candidates", candidates}, {"warnings", c.warnings},
-                    {"subnet_assignment", "not available: FortiOS DHCP behaviour for it is unproven"}};
+                    {"candidates", candidates}, {"warnings", c.warnings}};
         if (run.changes) {
             json changes = json::array();
             for (const auto& ch: run.changes->changes)
@@ -111,7 +110,7 @@ namespace fph {
                                s.privileged ? "  [privileged: explicit only]" : "",
                                c.unusable_groups.contains(s.name) ? "  [NOT MANAGED: name clash]" : "");
         }
-        out += "  (subnet assignment: not available; groups are address groups only)\n\n";
+        out += "\n";
 
         // Devices grouped by group, in config order; protected ones last.
         out += "Devices\n";

@@ -175,7 +175,7 @@ getting started:
 inspect (read-only):
   devices [-v]          the inventory, classified, with reasons
   groups                device groups -> FortiGate address groups -> Pi-hole groups
-  networks              interfaces, subnets, strategy, DHCP pools, slice utilization
+  networks              interfaces, subnets, strategy and DHCP pools
   slices [--propose]    slice layout per network; --propose plans slices for the current members
   plan                  everything sync would do, FortiGate and Pi-hole
   references IP         what on the FortiGate refers to an address
@@ -502,6 +502,8 @@ the interface's mask and gateway, and nothing isolates them at Layer 2.
                 }
                 if (verb != "resume" && verb != "rollback") throw Usage("operations show|resume|rollback ID");
                 if (!config.enabled) throw ConfigError("the configuration is not enabled; nothing is written");
+                // Rollback stays available while paused: it is how a person backs out.
+                if (verb == "resume" && paused_detail(env.home) == "paused") throw ConfigError("sync is paused (forti-pihole resume)");
                 RunLock lock(env.home.lock());
                 PiholeApi* api = pihole();
                 Runtime rt{*gateway, permits, api, config, env.clock, env.sleep};
@@ -526,7 +528,15 @@ the interface's mask and gateway, and nothing isolates them at Layer 2.
                 else throw Usage("--url must start with http:// or https://");
                 auto colon = url.rfind(':');
                 target.host = std::string(url.substr(0, colon));
-                if (colon != std::string_view::npos) target.port = static_cast<unsigned>(std::stoul(std::string(url.substr(colon + 1))));
+                if (colon != std::string_view::npos) {
+                    unsigned port = 0;
+                    auto text = url.substr(colon + 1);
+                    auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), port);
+                    if (error != std::errc() || end != text.data() + text.size() || port == 0 || port > 65535)
+                        throw Usage("--url: the port must be a number 1..65535");
+                    target.port = port;
+                }
+                if (target.host.empty()) throw Usage("--url needs a host");
                 auto store = forti::engine::default_secret_store(forti::engine::Paths::from_env());
                 json caps_request = base_request(config);
                 caps_request["what"] = "devices";
@@ -537,12 +547,18 @@ the interface's mask and gateway, and nothing isolates them at Layer 2.
                         binding = std::format("{}:{}", d.value("host", std::string()), d.value("port", 443));
                 std::string profile = config.profile.empty() ? devices["meta"].value("default_profile", std::string()) : config.profile;
                 std::string account = "pihole/" + profile + "/webhook-token";
+                // `plan` shows the operations with a well-formed stand-in token; install generates (or
+                // reuses) the real one in forti's secret store and never prints it.
+                const std::string placeholder(64, '0');
                 json operations = verb == "remove" ? daemon::stitch_delete_operations(config.prefix)
-                                                   : daemon::stitch_create_operations(target, verb == "plan" ? "<generated at install>"
+                                                   : daemon::stitch_create_operations(target, verb == "plan" ? placeholder
                                                                                                              : daemon::ensure_token(*store, account, binding),
                                                                                       config.prefix);
                 if (verb == "plan") {
-                    out << operations.dump(2) << "\n";
+                    auto text = operations.dump(2);
+                    for (auto at = text.find(placeholder); at != std::string::npos; at = text.find(placeholder))
+                        text.replace(at, placeholder.size(), "<generated at install>");
+                    out << text << "\n";
                     return 0;
                 }
                 if (verb != "install" && verb != "remove") throw Usage("events plan|install|remove --url http://HOST:PORT");
@@ -726,6 +742,10 @@ the interface's mask and gateway, and nothing isolates them at Layer 2.
         } catch (const forti::engine::Failure& e) {
             err << "forti-pihole: " << e.what() << "\n";
             return forti::engine::exit_code(e.code());
+        } catch (const std::exception& e) {
+            // Anything else is a bug or an environment problem; report it rather than abort.
+            err << "forti-pihole: " << e.what() << "\n";
+            return 1;
         }
     }
 

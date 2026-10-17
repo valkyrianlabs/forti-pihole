@@ -1,131 +1,108 @@
 # forti-pihole
 
-A FortiGate companion that keeps your device inventory sorted into **logical segments**, using
-FortiOS's own objects. It reads the FortiGate's device inventory and DHCP data through the FortiOS
-REST API, classifies each device by MAC address with rules you write, and keeps these objects in step:
+**Unified FortiGate network identity and Pi-hole DNS policy synchronization.**
 
-| Object | Name | Written by |
-|---|---|---|
-| MAC address object per device | `fp-dev-*` | forti-pihole |
-| Address group per segment | `fp-seg-<segment>` | forti-pihole |
-| Dynamic device-identification address (a rule) | `fp-rule-<segment>-<label>` | you, in the FortiGate GUI; forti-pihole only reads it |
+The FortiGate owns your networks, DHCP, device identification, address objects and policies. Pi-hole
+owns your filtering groups, blocklists and filtering behaviour. forti-pihole owns the relationship
+between them, and keeps it true:
 
-Your firewall policies reference the `fp-seg-*` groups. Move a device to another segment in the GUI,
-or with `forti-pihole assign`, and the next run keeps it there.
+- **device groups ↔ Pi-hole groups**: every device the FortiGate sees is classified into a device group,
+  kept on the FortiGate as an address group `fp-grp-<group>` (one MAC object `fp-dev-*` per device)
+  that your own policies can reference, and mapped to a Pi-hole group;
+- **networks ↔ CIDR client entries**: each network's addresses map to Pi-hole client entries, so every
+  device gets its group's DNS filtering.
 
-It is **never in the traffic path**: a command-line program that a systemd user timer runs every 15
-minutes. There is no daemon and no listener, and nothing on the network depends on it running. It links
-the same command engine as the `forti` CLI ([forti-cli](https://github.com/valkyrianlabs/forti-cli)),
-built on the [forti-api](https://github.com/valkyrianlabs/forti-api) SDK.
+It is **never in the traffic path**: if it stops, the FortiGate keeps routing and serving DHCP, and
+Pi-hole keeps its last configuration. It links the same command engine as the `forti` CLI
+([forti-cli](https://github.com/valkyrianlabs/forti-cli)), built on the
+[forti-api](https://github.com/valkyrianlabs/forti-api) SDK.
 
-Full documentation: [docs/](docs/index.md).
+## Two strategies, one engine
+
+Chosen per network:
+
+| Strategy | For | How Pi-hole tells devices apart | FortiGate changes |
+|---|---|---|---|
+| **subnet** | Native VLANs | The interface subnet → the network group's Pi-hole group | None |
+| **slices** | A flat network | Group members get DHCP reservations inside CIDR slices; each slice → its group's Pi-hole group | Single DHCP reservations, only with `manage_reservations` |
+
+**hybrid** puts slices inside a real VLAN and maps the rest of the VLAN to the network group's Pi-hole
+group (valid because Pi-hole resolves the longest matching prefix). **observe** only reads and reports.
+
+A slice is a DHCP allocation and DNS classification unit: devices keep the interface's real mask and
+gateway. It is **not** a routed subnet and **not** Layer-2 isolation.
 
 ## What it is not
 
-- **Not VLAN tagging.** It does not create VLAN interfaces or move ports or devices between VLANs.
-  Segments are address groups; what they mean on the wire is up to your policies.
-- **No RADIUS, no 802.1X, no dynamic VLAN assignment.** It never configures switches or
-  authentication.
-- **No layer-2 isolation.** Devices in different segments on the same VLAN can still reach each other
-  without passing through the FortiGate.
-- **No DHCP changes.** Assigning segments their own DHCP ranges is not yet available: it is under
-  evaluation, and the program never writes DHCP settings today.
+- **Not VLAN tagging.** It never creates or changes interfaces. Creating a VLAN interface on the
+  FortiGate does not make an access point or a switch tag anyone's traffic.
+- **No RADIUS, no 802.1X, no dynamic VLAN assignment**, and no switch configuration.
+- **No Layer-2 isolation.** Devices on one network reach each other directly, whatever their group.
+- **Not DNS enforcement.** DNS over HTTPS, Private Relay and hard-coded resolvers bypass any DNS filter
+  unless your FortiGate policies stop them.
 
 ## Install
 
-**Debian / Ubuntu (amd64)**, from the ValkyrianLabs APT repository:
-
 ```sh
-sudo install -d -m 0755 /etc/apt/keyrings
-curl -fsSL https://apt.valkyrianlabs.com/pubkey.gpg | sudo tee /etc/apt/keyrings/valkyrianlabs.gpg > /dev/null
-echo "deb [signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" \
-  | sudo tee /etc/apt/sources.list.d/valkyrianlabs.list
-sudo apt update && sudo apt install forti-pihole
+brew install valkyrianlabs/tap/forti-cli valkyrianlabs/tap/forti-pihole     # macOS, Linuxbrew
+sudo apt install forti-pihole                                               # Debian/Ubuntu amd64, from apt.valkyrianlabs.com
 ```
 
-The package recommends `forti-cli` (for `forti configure`) and `valkyrianlabs-archive-keyring`, which
-keeps the repository key current through upgrades.
-
-**macOS (Homebrew)**:
-
-```sh
-brew install valkyrianlabs/tap/forti-cli valkyrianlabs/tap/forti-pihole
-```
-
-macOS has no systemd: run `forti-pihole apply` yourself, or from your own scheduler.
-
-**From source**: see [Building](#building).
-
-`forti-pihole --version` names what it was built from, e.g.
-`forti-pihole 0.1.0 (engine forti-cli 468f9e1, forti-api 1.1.1)`.
+Requirements: a forti profile for the FortiGate (`forti configure`, from forti-cli), and Pi-hole v6 with
+FTL 6.7.0 or newer and an **app password**. [Install](docs/getting-started/install.md) has the APT
+repository setup and the source build.
 
 ## Quick start
 
-1. Create a device profile with the forti CLI: `forti configure` (host, API token, mode). The profile's
-   API account needs read access to the device inventory and DHCP, and write access to firewall
-   addresses and address groups.
-2. Write a starting configuration with `forti-pihole init` (`~/.forti/pihole/config.json`; never
-   overwrites one) and describe your segments and rules in it.
-3. See what it would do. Neither command writes anything:
-   ```sh
-   forti-pihole report      # the inventory, classified into segments
-   forti-pihole plan        # the changes the next apply would make
-   ```
-4. Apply once by hand, then let the timer keep it current:
-   ```sh
-   forti-pihole apply                    # at most 50 devices per run (--max-changes N)
-   systemctl --user enable --now forti-pihole.timer
-   loginctl enable-linger "$USER"   # optional: run while you are logged out
-   ```
-
-## Files
-
-| Path | What |
-|---|---|
-| `$FORTI_HOME/pihole/config.json` | Your configuration (segments, rules, protected devices) |
-| `$FORTI_HOME/pihole/state.json` | What forti-pihole has learned about each device between runs |
-| `$FORTI_HOME/pihole/history.jsonl` | One line per apply (`forti-pihole history`) |
-
-`FORTI_HOME` defaults to `~/.forti`, the forti home that forti and forti-mcp also use. Device profiles
-and credentials stay where `forti configure` put them.
-
-## Safety model
-
-- **Fail-static.** Nothing on the network depends on forti-pihole. If it stops, the FortiGate keeps
-  the objects it has; a failed read never deletes anything.
-- **Write allowlist.** It writes only `firewall/address` and `firewall/addrgrp` objects whose name
-  starts with its prefix (default `fp-`) and that carry the marker comment
-  `managed by forti-pihole`. Every other write is refused in code before it is sent. It never touches
-  interfaces, policies, routing, DHCP, users, admins, switches or system settings.
-- **Your objects are yours.** Objects without the marker are never changed or deleted, even when their
-  name has the prefix.
-- **Conservative classification.** Precedence is protected > your assignment (`assignments` in the
-  configuration, `assign`, a move in the GUI) > rule > default. Privileged segments are never inferred
-  from a rule, and an ambiguous match goes to the default segment. A device that seems to have come
-  back with a new randomized MAC is linked only after you `confirm` it.
-- **No device loses its route.** Before moving devices, it simulates your policies for each device's
-  internet and DNS traffic and keeps a device where it is when a move would cut it off. At most
-  `max_changes` devices (default 50) change per run.
-- **Every change goes through the engine's plan and apply** (validation, drift check, verification,
-  audit record, rollback plan), within the profile's mode: a `read-only` profile can `report` and
-  `plan`, but `apply` is refused.
-
-## Building
-
 ```sh
-meson setup build -Dtests=enabled
-meson compile -C build -j "$(ci/build-jobs)"
-meson test -C build
-sudo meson install -C build --skip-subprojects    # /usr/local/bin/forti-pihole
+forti configure                                            # the FortiGate profile
+forti-pihole setup --pihole-url https://pihole.example.net # discover, store the app password, write config.json
+forti-pihole networks                                      # review: strategy per network
+forti-pihole groups                                        # review: device group -> Pi-hole group
+forti-pihole slices --propose                              # flat networks: proposed slices
+forti-pihole plan                                          # everything a sync would do (writes nothing)
+# set "enabled": true in ~/.forti/pihole/config.json
+forti-pihole sync
 ```
 
-Needs a C++23 compiler (GCC 13+ or a recent clang), Meson ≥ 1.3, libcurl and (for tests) GoogleTest.
-The engine comes from forti-cli's source as the Meson subproject `subprojects/forti-cli`, pinned to one
-commit by `subprojects/forti-cli.wrap` and fetched at configure time. forti-api (header-only) comes from
-a system install (`libforti-api-dev`, the `forti-api` formula) when present, else from its wrap. On
-Linux, `meson install` also installs the user units into `<prefix>/lib/systemd/user`; their
-`ExecStart` names `/usr/bin/forti-pihole`, so a `/usr/local` install needs
-`systemctl --user edit forti-pihole.service`. Tests never contact a device.
+Then keep it running with the systemd user timer (`systemctl --user enable --now forti-pihole.timer`) or
+the optional service `forti-piholed`, which reacts to FortiGate changes
+(`forti-pihole events install --url http://HOST:8735`). The full walkthrough is
+[Onboarding](docs/getting-started/onboarding.md).
+
+## Safety
+
+- **Nothing is written until `"enabled": true`.** `forti-pihole pause` stops all writes at any time;
+  reservations and address moves are off per network until `"manage_reservations": true`.
+- **A two-layer write allowlist**, checked before planning and again by a guard transport under the
+  engine before any request is sent: managed `fp-*` address objects and groups; single DHCP reservation
+  entries (never the whole list); host objects you adopted; lease revokes of the listed addresses; the
+  automation stitch only inside `events install|remove`.
+- **Administrator objects are never modified** unless you adopt them for one device
+  (`forti-pihole adopt MAC --object NAME --reservation`).
+- **Migrations are journaled, resumable and reversible.** Objects are updated before the old lease is
+  revoked, so an old address never keeps privileges; only that device's lease is revoked, once; the end
+  is verified (lease, firewall reach, Pi-hole group).
+- **Pi-hole:** only client entries with the comment `managed by forti-pihole` are written; your entries
+  are read and reported; groups are mapped, never created by a sync.
+- **Every FortiGate write goes through the forti engine** (validation, verification, audit, rollback
+  plan) and honours the profile's mode: a `guarded` profile waits for `forti approve`.
+- **Secrets stay in forti's secret store**, never in files, output or logs.
+
+[Safety](docs/guides/safety.md) has the full model.
+
+## Documentation
+
+| | |
+|---|---|
+| [Overview](docs/index.md) | Ownership, strategies, how a sync works |
+| [Install](docs/getting-started/install.md), [Onboarding](docs/getting-started/onboarding.md) | Getting started |
+| [Strategies](docs/guides/strategies.md), [Address slicing](docs/guides/address-slicing.md), [Migrations](docs/guides/migrations.md) | Mapping networks |
+| [Device groups and rules](docs/guides/device-groups-and-rules.md), [Pi-hole](docs/guides/pihole.md), [Runtime](docs/guides/runtime.md) | The rest of the guides |
+| [Command line](docs/reference/cli.md), [Configuration](docs/reference/configuration.md), [Troubleshooting](docs/reference/troubleshooting.md) | Reference |
+| [Building and testing](docs/development/testing.md) | Development |
+
+An agent skill for operating forti-pihole on a user's behalf is in [skill/forti-pihole](skill/forti-pihole/SKILL.md).
 
 ## License
 

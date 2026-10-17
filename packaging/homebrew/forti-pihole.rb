@@ -3,7 +3,7 @@
 # Formula template. `vlr homebrew formula` renders the release url/sha256 into
 # release/homebrew/forti-pihole.rb, which `vlr homebrew publish` commits to valkyrianlabs/homebrew-tap.
 class FortiPihole < Formula
-  desc "Keeps FortiGate device inventory segments in native FortiOS address objects"
+  desc "FortiGate network identity and Pi-hole DNS policy synchronization"
   homepage "https://github.com/valkyrianlabs/forti-pihole"
   url "https://github.com/valkyrianlabs/forti-pihole/releases/download/v0.1.0/forti-pihole-0.1.0.tar.gz"
   sha256 "TODO_REPLACE_WITH_RELEASE_ARCHIVE_SHA256"
@@ -46,7 +46,7 @@ class FortiPihole < Formula
     <<~EOS
       Configure a device profile with `forti configure` (valkyrianlabs/tap/forti-cli), then write
       ~/.forti/pihole/config.json (example: #{opt_pkgshare}/config.example.json) and start with:
-        forti-pihole report
+        forti-pihole setup
     EOS
   end
 
@@ -66,7 +66,7 @@ class FortiPihole < Formula
     ENV["FORTI_HOME"] = (testpath/"forti").to_s
     assert_match "forti-pihole #{version} (engine forti-cli ", shell_output("#{bin}/forti-pihole --version")
     help = shell_output("#{bin}/forti-pihole --help")
-    %w[report plan apply assign confirm status history].each do |command|
+    %w[setup discover devices plan sync assign status history].each do |command|
       assert_match command, help
     end
     assert_match "forti-piholed #{version} (engine forti-cli ", shell_output("#{bin}/forti-piholed --version")

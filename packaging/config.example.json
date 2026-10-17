@@ -1,101 +1,107 @@
 {
-  "$comment": "forti-pihole configuration. Segments are FortiGate address groups <prefix>seg-<name>; edit membership in the FortiGate GUI.",
+  "$comment": "forti-pihole configuration. Groups are FortiGate address groups <prefix>grp-<name> (edit membership in the FortiGate GUI) mapped to Pi-hole groups. Nothing is written until enabled is true.",
   "adopt_existing": true,
   "assignments": {},
-  "default_segment": "default",
-  "interfaces": [
-    "internal"
+  "default_group": "default",
+  "enabled": false,
+  "groups": [
+    {
+      "description": "The operator's own devices",
+      "name": "trusted",
+      "privileged": true
+    },
+    {
+      "description": "Work computers",
+      "name": "work",
+      "privileged": true
+    },
+    {
+      "description": "TVs and streaming sticks",
+      "name": "tvs"
+    },
+    {
+      "description": "IoT devices with a known, needed cloud",
+      "name": "iot_trusted"
+    },
+    {
+      "description": "Commodity IoT (plugs, bulbs)",
+      "name": "iot_untrusted"
+    },
+    {
+      "description": "Everything not yet classified",
+      "name": "default"
+    }
   ],
   "max_changes": 50,
+  "networks": [
+    {
+      "group": "default",
+      "interface": "internal",
+      "manage_reservations": false,
+      "mode": "observe",
+      "slices": []
+    }
+  ],
+  "pihole": {
+    "name": "default",
+    "url": ""
+  },
   "prefix": "fp-",
   "profile": "",
   "protected": [],
   "retire_after_days": 30,
   "rules": [
     {
+      "group": "iot_untrusted",
       "match": {
         "vendor": "TP-Link"
       },
       "name": "kasa-plugs",
-      "priority": 200,
-      "segment": "iot_untrusted"
+      "priority": 200
     },
     {
+      "group": "iot_untrusted",
       "match": {
         "family": "Hue",
         "vendor": "Philips"
       },
-      "name": "hue",
-      "segment": "iot_untrusted"
+      "name": "hue"
     },
     {
+      "group": "tvs",
       "match": {
         "family": "Fire TV*",
         "vendor": "Amazon"
       },
-      "name": "fire-tv",
-      "segment": "tvs"
+      "name": "fire-tv"
     },
     {
+      "group": "tvs",
       "match": {
         "type": "Television"
       },
-      "name": "smart-tvs",
-      "segment": "tvs"
+      "name": "smart-tvs"
     },
     {
+      "group": "iot_trusted",
       "match": {
         "vendor": "Ring"
       },
-      "name": "ring",
-      "segment": "iot_trusted"
+      "name": "ring"
     },
     {
+      "group": "iot_trusted",
       "match": {
         "vendor": "Rain Bird"
       },
-      "name": "rain-bird",
-      "segment": "iot_trusted"
+      "name": "rain-bird"
     },
     {
+      "group": "iot_trusted",
       "match": {
         "vendor": "Chamberlain"
       },
-      "name": "myq",
-      "segment": "iot_trusted"
-    }
-  ],
-  "segments": [
-    {
-      "description": "Owner's own devices",
-      "name": "owner",
-      "privileged": true,
-      "subnet": "192.168.60.0/24"
-    },
-    {
-      "description": "Work computers",
-      "name": "work",
-      "privileged": true,
-      "subnet": "192.168.50.0/24"
-    },
-    {
-      "description": "TVs and streaming sticks",
-      "name": "tvs",
-      "subnet": "192.168.40.0/24"
-    },
-    {
-      "description": "IoT devices with a known, needed cloud",
-      "name": "iot_trusted",
-      "subnet": "192.168.31.0/24"
-    },
-    {
-      "description": "Commodity IoT (plugs, bulbs)",
-      "name": "iot_untrusted",
-      "subnet": "192.168.30.0/24"
-    },
-    {
-      "description": "Everything not yet classified (the existing 192.168.1.0/24)",
-      "name": "default"
+      "name": "myq"
     }
   ]
 }

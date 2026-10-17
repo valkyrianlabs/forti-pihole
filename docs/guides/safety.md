@@ -1,7 +1,7 @@
 ---
 title: Safety
-description: Fail-static operation, the write allowlist and ownership marker, the connectivity check, and everything forti-pihole never touches.
-order: 50
+description: The full safety model: fail-static operation, enabled and pause, the two-layer write allowlist and its permits, ownership and adoption, migrations, Pi-hole ownership, limits and secrets.
+order: 90
 status: published
 tags:
   - guides
@@ -9,107 +9,144 @@ tags:
 
 # Safety
 
-forti-pihole changes a firewall unattended, every 15 minutes, so it is built to do as little as
-possible and to do nothing when in doubt. This page covers what it may write, what it never touches,
-and what happens when something goes wrong.
+forti-pihole changes a firewall and a DNS filter unattended, so it is built to do as little as possible,
+only what it can prove is its own, and nothing at all when in doubt.
 
 :::toc[On this page]{depth="2" theme="compact"}
 :::
 
 ## Fail-static
 
-**Nothing on the network depends on forti-pihole running.** It is not in the traffic path: the
-FortiGate enforces your policies with the address objects and groups it holds, whether or not the
-program ever runs again.
+Nothing on the network depends on forti-pihole running. It is never in the traffic path: the FortiGate
+routes and serves DHCP, and Pi-hole filters, with whatever configuration they have. A failed, skipped or
+stopped run leaves both as they are. No object is removed because a read failed, a device was briefly
+absent or the inventory came back empty.
 
-- A failed run, a stopped timer or an uninstalled package leaves every object as it is. Devices stay in
-  the segments they were in; new devices simply are not sorted until the next successful run.
-- An empty inventory (a failed or partial read) never leads to anything destructive. A device is
-  retired only after it has gone unseen for `retire_after_days`.
-- At most `max_changes` devices (default 50, `apply --max-changes N`) change in one run; the rest wait
-  for the next one. A surprise, such as a wrong rule or an inventory that suddenly looks different,
-  cannot rewrite every segment in one go.
-- A segment group whose segment left the configuration is reported, never deleted.
+## Nothing is written until you say so
+
+| Control | Effect |
+|---|---|
+| `"enabled": false` (the default after install) | `sync` plans and reports, writes nothing to the FortiGate or Pi-hole, and exits `7`; `migrate`, `operations resume` and `rollback` refuse; `forti-piholed` runs do nothing |
+| `forti-pihole pause` | `sync` plans and reports, writes nothing to the FortiGate or Pi-hole, and exits `0`; `migrate` refuses; `forti-piholed` postpones its runs until `resume` |
+| `"manage_reservations": false` (the default, per network) | No reservation is added and no migration starts on its own on that network; the plan still shows them |
+| A `read-only` forti profile | Every FortiGate apply is refused by the engine (`policy_denied`) |
+
+The inspecting commands (`discover`, `devices`, `groups`, `networks`, `slices`, `plan`, `references`,
+`status`, `history`, `operations`, `operations show`) never write anything, not even forti-pihole's own
+state. `sync` records what it observed in `state.json` even when it writes nothing else. `assign`,
+`adopt` and `confirm` change only `state.json`; `setup` only `config.json` and the
+Pi-hole password in forti's secret store.
+
+Two commands write to the FortiGate without `"enabled": true`, because you run them explicitly for that
+purpose: `events install` and `events remove` (the automation stitch, nothing else).
+
+## The forti profile mode still applies
+
+Every FortiGate write is a plan and an apply through the forti engine, the same engine as the `forti`
+CLI: validated against the schema and the device, verified after the apply, recorded in forti's audit
+log with a rollback plan, and subject to the profile's mode. A `guarded` profile waits for
+`forti approve <plan id>`; forti-pihole never approves anything itself.
 
 ## The write allowlist
 
-forti-pihole may create, update or delete exactly two kinds of object:
+What forti-pihole may write on the FortiGate is enforced twice:
 
-| Resource | Only when |
+1. **Before planning**, every operation is checked against the allowlist (`check_operations`).
+2. **Under the engine**, a guard transport refuses every `POST`, `PUT` or `DELETE` that is not on the
+   allowlist **before it is sent**. A bug in the planner, or a change in what the engine sends, still
+   cannot reach anything else. A guard refusal is an internal error (exit `1`, `nothing was sent`).
+
+| May write | Only when |
 |---|---|
-| `firewall/address` | the name starts with the prefix (default `fp-`) **and** the object carries the comment `managed by forti-pihole` |
-| `firewall/addrgrp` | the name starts with the prefix **and** the object carries the comment `managed by forti-pihole` |
+| `firewall/address` and `firewall/addrgrp` objects named `fp-*` | Created with the ownership marker; updated or deleted only when the live object carries it; never renamed, never with the marker removed |
+| Single DHCP reservation entries (`system.dhcp/server/<id>/reserved-address/<entry>`) | Granted for one apply (a reservation stage or a migration step), on that server only. New entries carry the marker in their description; updates and deletes only of the permitted entries (managed, or adopted); never the whole list; never a MAC change |
+| Adopted administrator host objects | Only those you adopted for that device, only their `subnet`, only inside that device's migration |
+| `monitor/system/dhcp/revoke` | Only the listed addresses: the moving device's old lease (or its new one, in a rollback) |
+| `system/automation-trigger`, `-action`, `-stitch` named `fp-*` | Only inside `forti-pihole events install` and `remove`; created with the marker in the description; create and delete only |
 
-The allowlist is enforced twice. Before planning, every operation is checked: create, update or
-delete on these two collections only, prefixed names, updates and deletes only of objects that carry
-the marker, and every created object carries it. Then every request to the FortiGate passes through a
-**guard transport** underneath the forti engine, which refuses any write that is not to one of these
-two collections with a prefixed name before it is sent. A bug in the classification or the planner, or
-a change in what the engine sends, can at worst produce a wrong change to a `fp-` object; it cannot
-reach anything else.
+Every permit is granted for one apply and withdrawn right after. forti-pihole never writes interfaces,
+VLANs, firewall policies, VIPs, routing, DHCP server settings or pools, admin or API-user accounts,
+system settings, users, switch-controller or 802.1X.
 
-### The ownership marker
+## Administrator objects
 
-forti-pihole writes a comment starting with `managed by forti-pihole` on every object it creates
-(followed by the device's label or the segment's name), and changes or deletes only objects that carry
-it. Names alone are not trusted. An object without the marker is yours, even if its name starts with
-the prefix:
+An object without the marker `managed by forti-pihole` is an administrator's, including one whose name
+starts with `fp-`, such as your `fp-rule-*` rule objects. It is never modified or deleted:
 
-- It is never modified or deleted. Your `fp-rule-*` rule objects are read, never written.
-- It may be *referenced*: with `adopt_existing` (the default), your address object for a single
-  device's MAC becomes that device's member of its segment group, unchanged.
-- Members you add to a segment group by hand stay in it.
+- an existing single-MAC address object for a device is **referenced** as its group member
+  (`adopt_existing`), never edited;
+- an `fp-grp-<group>` address group without the marker makes that group unmanaged;
+- an administrator's DHCP reservation or host object changes only after you run
+  `forti-pihole adopt MAC --reservation` or `forti-pihole adopt MAC --object NAME`, and then only in
+  that device's migration.
 
-Do not copy the marker into objects you want to keep to yourself: forti-pihole treats any object with
-the prefix and the marker as its own.
+## Migrations
 
-## What it never touches
+An address move is a journaled operation with a verified end ([Migrations](/guides/migrations)):
 
-| Never written | Including |
-|---|---|
-| Interfaces and VLANs | VLAN creation, interface settings, device detection settings |
-| Firewall policies | Policies, policy order, schedules, services |
-| Routing | Static routes, SD-WAN, dynamic routing |
-| DHCP | Servers, ranges, reservations. Assigning segments their own DHCP ranges is **not yet available: under evaluation** |
-| Accounts | Administrators, API users, local users and groups |
-| Switching and access control | switch-controller, FortiSwitch ports, 802.1X, RADIUS |
-| System settings | Anything under `system/` |
+- **Refused** when the target address is in use, a VIP maps the old address, the device's reservation is
+  an administrator's and not adopted, or a host object on the old address is a policy source and not
+  adopted.
+- **Ordered** so the old address never keeps privileges: Pi-hole entry, reservation, adopted objects
+  updated **before** the old lease is revoked, then observe and verify.
+- **Patient**: only the device's own old lease is revoked, once. A device that does not renew leaves
+  the operation waiting; nothing is revoked again.
+- **Verified**: the lease and the inventory show the new address, internet and DNS reach through the
+  firewall are unchanged, and Pi-hole resolves the new address to the intended group.
+- **Resumable and reversible**: `operations resume` and `operations rollback`. A failed operation waits
+  for a person.
 
-It reads the device inventory, DHCP data, interfaces, firewall policies and address objects and groups
-(the policies for the [connectivity check](#the-connectivity-check)); it writes only the two collections
-above.
+## Limits on every run
 
-## The connectivity check
+- At most `max_changes` devices (default 50) change group per run; the rest wait for the next one. The
+  same budget bounds the reservations a sync adds.
+- At most `--max-migrations` (default 1) new migrations start per run, one open migration per device.
+- Retirement waits `retire_after_days` (default 30) and never happens on an empty inventory.
+- **No device loses its route**: every online device's internet and DNS reach is simulated against the
+  policies before and after a change; a device that would lose either keeps its current placement.
+- One run at a time: a lock file serializes the timer, the service and manual runs.
 
-Moving a device between segment groups changes which of your policies match its traffic. Before a run
-moves anything, forti-pihole checks that **no device loses its route**. For every online managed
-device it simulates FortiOS's first-match policy lookup for two probes, with the groups as they are and
-as they would be:
+## Classification
 
-| Probe | Traffic |
-|---|---|
-| internet | TCP 443 to `1.1.1.1`, out of an interface with the WAN role |
-| dns | UDP 53 to the DNS server the device's DHCP server hands out (skipped when that is the FortiGate itself, which local-in policy governs) |
+- Protected devices are never classified or moved.
+- Privileged groups are only entered by explicit decisions: no rule, `fp-rule-*` object or reassociation
+  guess can put a device there.
+- Equal-priority rules that disagree send the device to the default group, which can never be privileged.
+- A device that reappears with a new MAC is only linked after `forti-pihole confirm`.
 
-A change that would turn a device's accept into a deny, or into no match, is refused for that device:
-it keeps its current placement and is reported as blocked. The simulation ignores schedules, and treats
-policies it cannot evaluate offline (users and groups, internet services, FQDN or tag addresses) as not
-matching. These blind spots are the same before and after, so a change that matters still shows; the
-check is a guard against cutting devices off, not a full policy verdict.
+## Pi-hole
 
-Writes then go through the forti engine's apply, which re-checks the device, verifies each change by
-reading it back and records it in the audit log with a rollback plan. When the FortiGate cannot be
-reached or a read fails, the run writes nothing and the next timer run tries again.
+- Only client entries whose comment carries `managed by forti-pihole` are created, updated or deleted;
+  an update or delete first re-reads the entry and refuses without the marker.
+- Your entries are read and reported, never changed: an exact-IP entry inside a managed range shadows
+  it; a MAC entry never matches clients routed through the FortiGate.
+- Groups are mapped by name; a sync never creates, renames, disables or deletes a group, and no request
+  touching adlists or domains exists in the client.
+- Every request is checked against an allowlist before it is sent. TLS verification is always on; plain
+  HTTP only to a loopback Pi-hole; redirects are never followed.
 
-## The FortiOS account is the boundary
+## Secrets
 
-The API account in the device profile is what the FortiGate actually enforces. Give it an admin
-profile that allows writing firewall addresses and address groups and reading the rest it needs, and
-nothing more, and restrict its trusted hosts to the machine that runs the timer. The allowlist above
-holds for forti-pihole; the account's permissions hold for anything that has its token.
+The FortiGate API key, the Pi-hole app password and the webhook token live in forti's secret store
+(the macOS Keychain, or a `0600` file store), each bound to its host and port. They never appear in
+arguments, configuration files, state, history, the event log, output or error messages, and core dumps
+are disabled. Device data (hostnames, comments, vendor strings, event fields) is untrusted: it is
+sanitized before it is written into object comments or logs.
 
-:::callout[Recovery]{variant="info"}
-Because forti-pihole writes only its own address objects and groups, undoing it is ordinary object
-work: disable the timer, then delete the `fp-dev-*` objects and `fp-seg-*` groups (after removing
-them from your policies). Your policies, interfaces and rule objects were never changed.
-:::
+## What it is not
+
+forti-pihole is not VLAN tagging, RADIUS or 802.1X, and not Layer-2 isolation. Groups on one network
+share its broadcast domain whatever their slice, and a slice is not a routed subnet. Isolation is the job
+of your FortiGate policies (with the `fp-grp-*` groups) and of real VLANs.
+
+## Stopping it
+
+```bash
+forti-pihole pause                                   # stop all writes now
+systemctl --user disable --now forti-pihole.timer    # or forti-piholed.service
+forti-pihole events remove --url http://HOST:PORT    # remove the automation stitch
+```
+
+The FortiGate keeps the objects, reservations and groups it has, and Pi-hole keeps its entries. To undo a
+FortiGate change, apply its rollback plan with `forti apply <rollback plan>` (the `sync` output and
+`forti-pihole history --json` name it); to undo a migration, `forti-pihole operations rollback ID`.

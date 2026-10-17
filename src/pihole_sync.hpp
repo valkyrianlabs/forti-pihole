@@ -10,8 +10,8 @@
 //           subnet entry under the more specific slice entries (when Pi-hole resolves the most
 //           specific match) or as the CIDR complement of the slices (when it does not)
 //
-// Groups map by name to groups that already exist; forti-pihole never creates a filtering group on
-// its own during sync (setup can, when the operator asks).
+// Groups map by name to groups that already exist; forti-pihole never creates a filtering group (the
+// operator creates groups and their lists in Pi-hole).
 //
 
 #ifndef FORTI_PIHOLE_PIHOLE_SYNC_HPP
@@ -64,7 +64,7 @@ namespace fph {
     };
 
     struct PiholeFinding {
-        std::string kind;   // missing-group | unmanaged-overlap | unmanaged-shadow | stale-managed | mac-client | hostname-client
+        std::string kind;   // missing-group | unmanaged-overlap | unmanaged-shadow | stale-managed | mac-client | new-network | resolution
         std::string client, detail;
         int client_id = 0;
     };

@@ -1,6 +1,6 @@
 ---
 title: forti-pihole
-description: Keep a FortiGate's device inventory classified into logical segments, in native FortiOS address objects and groups.
+description: Unified FortiGate network identity and Pi-hole DNS policy synchronization.
 order: 0
 status: published
 tags:
@@ -9,184 +9,129 @@ tags:
 
 # forti-pihole
 
-forti-pihole is a FortiGate companion that keeps your device inventory sorted into **logical
-segments**, using FortiOS's own objects. It reads the FortiGate's device inventory and DHCP data
-through the FortiOS REST API, classifies each device by MAC address with rules you write, and keeps a
-MAC address object per device in the address group of its segment. Your firewall policies reference
-those groups.
+**Unified FortiGate network identity and Pi-hole DNS policy synchronization.**
 
-:::badges{align="left" gap="sm"}
-::badge[Release]{
-  type="github"
-  target="release"
-  repo="valkyrianlabs/forti-pihole"
-  href="https://github.com/valkyrianlabs/forti-pihole/releases"
-}
-::badge[CI]{
-  type="github"
-  target="workflow"
-  repo="valkyrianlabs/forti-pihole"
-  workflow="ci.yml"
-  href="https://github.com/valkyrianlabs/forti-pihole/actions/workflows/ci.yml"
-}
-::badge[License]{
-  type="github"
-  target="license"
-  repo="valkyrianlabs/forti-pihole"
-}
+forti-pihole is a companion for a FortiGate and a Pi-hole. The FortiGate already knows your networks
+and your devices; Pi-hole already knows how each filtering group should be treated. forti-pihole owns
+the relationship between the two and keeps it true: device groups on the FortiGate map to Pi-hole
+groups, and networks (or address slices of a network) map to Pi-hole client entries, so every device
+gets the DNS policy of the group it belongs to.
+
+:::toc[On this page]{depth="2" theme="compact"}
 :::
 
-```bash
-forti configure                                   # a device profile in ~/.forti
-forti-pihole report                             # the inventory, classified; writes nothing
-forti-pihole plan                               # what apply would change; writes nothing
-systemctl --user enable --now forti-pihole.timer   # keep it current every 15 minutes
-```
+## Who owns what
 
-It is **never in the traffic path**. It is a command-line program that a systemd user timer runs
-periodically; there is no daemon and no listener, and nothing on the network depends on it running.
-
-:::buttons{align="left" stack="mobile" gap="md"}
-::button[Install]{href="/getting-started/install" variant="primary"}
-::button[Quick start]{href="/getting-started/quick-start" variant="secondary"}
-::button[GitHub]{href="https://github.com/valkyrianlabs/forti-pihole" variant="outline" newTab=true}
-:::
-
-## What it keeps on the FortiGate
-
-| Object | Name | Who writes it |
+| System | Owns | forti-pihole's role |
 |---|---|---|
-| MAC address object, one per device | `fp-dev-*` | forti-pihole |
-| Address group, one per segment | `fp-seg-<segment>` | forti-pihole |
-| Dynamic device-identification address, read as a rule | `fp-rule-<segment>-<label>` | You, in the FortiGate GUI |
+| FortiGate | Interfaces and VLANs, routing, DHCP, device identification, address objects and groups, firewall policies | Reads all of it; keeps the device groups (`fp-grp-<group>`) and their per-device MAC objects (`fp-dev-*`); adds DHCP reservations only where you turn that on |
+| Pi-hole | Filtering groups, blocklists, allow and deny lists, filtering behaviour | Reads groups and client entries; keeps only the client entries it created (comment `managed by forti-pihole`) |
+| forti-pihole | The mapping: device group ↔ Pi-hole group, network ↔ CIDR client entries | Plans, reports and reconciles it; journals address moves |
 
-`fp-` is the default prefix. Every object forti-pihole writes carries the comment
-`managed by forti-pihole`, and it never changes an object without that marker.
-[Segments and rules](/guides/segments-and-rules) explains how a device ends up in a segment.
+Your firewall policies reference the `fp-grp-*` address groups like any other address group. Your
+Pi-hole groups keep their own blocklists and settings: forti-pihole never creates, renames or deletes a
+Pi-hole group during a sync, and never touches an adlist or a domain entry.
 
-## What you get
+## Never in the traffic path
+
+forti-pihole is a command-line program (`forti-pihole`) and an optional service (`forti-piholed`) that
+run beside the network, not in it. If either stops, the FortiGate keeps routing and serving DHCP with
+what it has, and Pi-hole keeps filtering with its last configuration. Nothing is written until you set
+`"enabled": true`, and `forti-pihole pause` stops all writes at any time.
+
+## Two strategies, one engine
+
+Each FortiGate interface you list in the configuration has an allocation strategy, chosen per network:
+
+:::cards{
+  columns="2"
+  cardTheme="muted"
+}
+
+:::card[Subnet: native VLANs]{
+  href="/guides/strategies#subnet"
+  linkScope="title"
+}
+The interface subnet maps to one Pi-hole group as a CIDR client entry. Every device on the VLAN gets
+that group's filtering. Nothing on the FortiGate changes.
+:::
+
+:::card[Slices: DHCP address slicing]{
+  href="/guides/address-slicing"
+  linkScope="title"
+}
+On a flat network, members of a group get DHCP reservations inside a CIDR slice that maps to their
+Pi-hole group. Devices keep the interface's real mask and gateway.
+:::
+
+:::
+
+**Hybrid** combines them: slices inside a real VLAN, with the rest of the VLAN mapped to the network
+group's Pi-hole group. This works because Pi-hole resolves a client by its longest matching prefix.
+**Observe** reads and reports a network without mapping anything. See
+[Allocation strategies](/guides/strategies).
+
+:::callout[A slice is not a subnet]{variant="warning"}
+An address slice is a DHCP allocation and DNS classification unit. It is not a routed subnet and not
+Layer-2 isolation: devices in a slice keep the interface's mask and gateway, and can still reach every
+other device on the same network without passing the FortiGate.
+:::
+
+## What it is not
+
+- **Not VLAN tagging.** forti-pihole never creates or changes interfaces. Creating a VLAN interface on
+  the FortiGate does not make an access point or a switch tag anyone's traffic: tagging is configured
+  on the AP and the switch, and a device lands on a VLAN only when they put it there.
+- **No RADIUS, no 802.1X, no dynamic VLAN assignment.** It never configures switches,
+  switch-controller or authentication.
+- **No Layer-2 isolation.** Groups on one network share its broadcast domain, whatever their slice.
+- **Not a DNS enforcement point.** Pi-hole filters only queries that reach it. DNS over HTTPS, iCloud
+  Private Relay and devices with a hard-coded resolver bypass any DNS filtering unless your FortiGate
+  policies stop them. See [Pi-hole](/guides/pihole#dns-that-bypasses-pi-hole).
+
+## How a sync works
+
+A sync reads the FortiGate (inventory, DHCP leases and servers, address objects and groups, VIPs,
+policies) and Pi-hole (groups and client entries), classifies every device, and plans everything. The
+inspecting commands stop there. `forti-pihole sync` (and `forti-piholed`, which runs the same sync)
+then writes, in this order:
+
+1. **FortiGate objects**: the device groups and device objects, through the forti engine's plan and
+   apply (validated, verified, audited, with a rollback plan; a guarded profile waits for approval).
+2. **Pi-hole**: the managed CIDR client entries.
+3. **Reservations**: devices already inside their slice get a reservation at the address they hold.
+4. **Migrations**: open address moves resume; then at most `--max-migrations` new ones start.
+
+Step 3 and new migrations only happen on networks with `"manage_reservations": true`. The other
+writing commands are explicit, one-off requests: `migrate`, `operations resume|rollback` and
+`events install|remove`. See [Safety](/guides/safety) for the full model.
+
+## Where to go next
 
 :::cards{
   columns="3"
   cardTheme="muted"
 }
 
-:::card[Native objects]{eyebrow="FortiOS"}
-Segments are ordinary address groups, so policies, logs and the GUI work with them as with any
-other group. Nothing proprietary sits between your devices and the firewall.
-:::
-
-:::card[You stay in charge]{eyebrow="Precedence"}
-Protected devices first, then your own assignments (a move in the GUI, or `forti-pihole assign`),
-then rules, then the default segment. Privileged segments are never inferred from a rule.
-:::
-
-:::card[Look before it writes]{eyebrow="Workflow"}
-`report` and `plan` change nothing. `apply` makes the planned changes through the forti engine, with
-validation, verification, an audit record and a rollback plan, and `--max-changes` bounds a run.
-:::
-
-:::card[Fail-static]{eyebrow="Safety"}
-If a run fails or the timer stops, the FortiGate keeps the objects it has. A failed read never
-deletes anything.
-:::
-
-:::card[A narrow write surface]{eyebrow="Safety"}
-Only prefixed address objects and groups that carry the ownership marker are ever written. Every
-other write is refused in code before it is sent.
-:::
-
-:::card[Randomized MACs]{eyebrow="Devices"}
-Phones and laptops that come back with a new private MAC are offered as candidates; you link them with
-`forti-pihole confirm`.
-:::
-
-:::
-
-## What it is not
-
-:::callout[Not a network segmentation product]{variant="warning"}
-- **Not VLAN tagging.** It does not create VLAN interfaces or move ports or devices between VLANs.
-  A segment is an address group; what it means on the wire is decided by your policies.
-- **No RADIUS, no 802.1X, no dynamic VLAN assignment.** It never configures switches,
-  switch-controller or authentication.
-- **No layer-2 isolation.** Devices in different segments on the same VLAN can still reach each other
-  without passing through the FortiGate.
-- **No DHCP changes.** Giving segments their own DHCP ranges is not yet available: it is under
-  evaluation, and forti-pihole never writes DHCP settings today.
-:::
-
-## How it relates to forti-cli
-
-forti-pihole compiles in the command engine of [forti-cli](https://github.com/valkyrianlabs/forti-cli),
-the `forti` command-line tool, which is built on the
-[forti-api](https://github.com/valkyrianlabs/forti-api) SDK. The engine owns device profiles,
-credentials, validation, plans, modes and the audit log; forti-pihole decides which objects should
-exist and hands the changes to the engine. It never runs the `forti` executable, but you use `forti
-configure` to create the device profile it connects with, and both use the same forti home
-(`~/.forti`).
-
-## Where to go next
-
-:::cards{
-  columns="2"
-  cardTheme="glass"
-}
-
 :::card[Install]{
   href="/getting-started/install"
-  eyebrow="Getting started"
+  linkScope="title"
 }
-Install forti-pihole from the APT repository or Homebrew, or build it from source.
+Homebrew, APT, or from source; forti-cli profiles and a Pi-hole v6 app password.
 :::
 
-:::card[Quick start]{
-  href="/getting-started/quick-start"
-  eyebrow="Getting started"
+:::card[Onboarding]{
+  href="/getting-started/onboarding"
+  linkScope="title"
 }
-A profile, a first configuration, `report`, `plan`, one `apply` and the timer.
-:::
-
-:::card[Segments and rules]{
-  href="/guides/segments-and-rules"
-  eyebrow="Guide"
-}
-The objects, the rule objects you create in the GUI, and the precedence that decides a segment.
-:::
-
-:::card[Randomized MACs]{
-  href="/guides/reassociation"
-  eyebrow="Guide"
-}
-Why a device can come back as a stranger, and how `confirm` links it.
+From `forti configure` to a first sync, step by step.
 :::
 
 :::card[Safety]{
   href="/guides/safety"
-  eyebrow="Guide"
+  linkScope="title"
 }
-Fail-static operation, the write allowlist, the ownership marker and what is never touched.
-:::
-
-:::card[Command line]{
-  href="/reference/cli"
-  eyebrow="Reference"
-}
-Every subcommand and option.
-:::
-
-:::card[Configuration]{
-  href="/reference/configuration"
-  eyebrow="Reference"
-}
-`config.json`: segments, rules, protected devices and retirement.
-:::
-
-:::card[Testing]{
-  href="/development/testing"
-  eyebrow="Development"
-}
-Building, the test suites, CI and the live-device rule.
+What forti-pihole may write, what it never touches, and how to stop it.
 :::
 
 :::

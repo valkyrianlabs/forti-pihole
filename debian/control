@@ -23,12 +23,12 @@ Depends:
 Recommends:
  forti-cli,
  valkyrianlabs-archive-keyring,
-Description: FortiGate device inventory segments kept in native FortiOS objects
- forti-pihole reads a FortiGate's device inventory and DHCP data through
- the FortiOS REST API, classifies devices by MAC address with operator rules,
- and keeps FortiOS-native objects in step: a MAC address object per device
- and an address group per logical segment, which firewall policies can then
- reference.
+Description: FortiGate network identity and Pi-hole DNS policy synchronization
+ forti-pihole keeps a FortiGate's devices and networks in step with Pi-hole's
+ DNS filtering groups. Devices are classified by MAC into groups kept as
+ native FortiOS address groups; each network maps to Pi-hole client entries,
+ either as a whole VLAN subnet or as DHCP address slices on a flat network
+ (members get reservations inside their group's CIDR slice).
  .
  It is never in the traffic path. A systemd user timer (shipped, never
  enabled) runs it periodically; nothing on the network depends on it running.

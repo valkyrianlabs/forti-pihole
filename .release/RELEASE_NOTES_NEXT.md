@@ -4,36 +4,76 @@ Maintained continuously while working; `vlr prepare` promotes it into the releas
 history (and the GitHub release) and resets this file to this template.
 
 Format: the first line is "# <release title>" WITHOUT a version number (vlr adds it).
-Everything after the title is the Markdown release body. Describe the resulting behavior
+Everything after the title is the Markdown body. Describe the resulting behavior
 for users and operators; keep it representative of what actually ships.
 -->
-# Device segments in native FortiOS objects
+# FortiGate ↔ Pi-hole synchronization: native subnets and DHCP address slicing
 
-forti-pihole is new: a FortiGate companion that keeps your device inventory sorted into logical
-segments, as FortiOS address objects your own policies can use.
+forti-pihole is new: unified FortiGate network identity and Pi-hole DNS policy synchronization. The
+FortiGate keeps owning networks, DHCP, device identification and policies; Pi-hole keeps owning
+filtering groups and blocklists; forti-pihole owns the relationship and keeps it true. It is never in
+the traffic path: if it stops, both keep their last configuration.
 
-- **Segments are address groups.** Every device the FortiGate has seen gets a MAC address object
-  (`fp-dev-*`) in the group of its segment (`fp-seg-<segment>`). Rules come from dynamic
-  device-identification addresses you create in the GUI (`fp-rule-<segment>-<label>`) and from
-  `config.json` (vendor, family, type, OS, hostname, MAC prefix).
-- **You stay in charge.** Moving a device to another group in the GUI, or `forti-pihole assign`,
-  is an assignment the next run keeps. Protected devices are never moved, privileged segments are
-  never inferred from a rule, and an ambiguous match goes to the default segment. A device that seems
-  to be back with a new randomized MAC is linked only after `forti-pihole confirm`.
-- **Look before it writes.** `forti-pihole init` writes a starting configuration; `report` and `plan`
-  change nothing; `apply` makes the planned changes through the forti engine (validation,
-  verification, audit, rollback plan), as the profile's mode allows: a guarded profile waits for
-  `forti approve`.
-- **No device loses its route.** Before a move, the policies are simulated for each device's internet
-  and DNS traffic; a move that would cut a device off is refused for that device. At most 50 devices
-  change per run by default (`--max-changes N`); the rest follow in later runs.
-- **Never in the traffic path.** A systemd user timer runs `apply --quiet` every 15 minutes once you
-  enable it (`systemctl --user enable --now forti-pihole.timer`). If it stops, the FortiGate keeps
-  what it has.
-- **A narrow write surface.** Only prefixed address objects and groups that carry the marker
-  `managed by forti-pihole` are ever written; every other write is refused before it is sent.
-  Interfaces, policies, routing, DHCP, users, admins and switches are never touched, and objects you
-  created are never changed or deleted.
+## Device groups on both sides
 
-Not in this release: assigning segments their own DHCP ranges (under evaluation). forti-pihole is
-not VLAN tagging, RADIUS or layer-2 isolation.
+- Every device the FortiGate sees is classified into a device group, kept as the address group
+  `fp-grp-<group>` with one MAC object `fp-dev-*` per device, ready for your own policies, and mapped
+  to a Pi-hole group by name.
+- Precedence: protected, then `assignments` in the configuration, then pins (`forti-pihole assign`, a
+  confirmed reassociation, or a move in the FortiGate GUI, which is detected), then rules (config
+  rules and GUI-made `fp-rule-<group>-<label>` device-identification objects), then the default group.
+  Privileged groups are never entered by a rule; ambiguous matches go to the default group.
+
+## Two strategies, chosen per network
+
+- **subnet** for native VLANs: the interface subnet maps to the network group's Pi-hole group as a
+  CIDR client entry. Nothing on the FortiGate changes.
+- **slices** for a flat network: members of a group get DHCP reservations inside a CIDR slice that
+  maps to their Pi-hole group. Devices keep the interface's mask and gateway; a slice is an allocation
+  and DNS classification unit, not a routed subnet and not Layer-2 isolation.
+- **hybrid** puts slices inside a real VLAN and maps the rest of the VLAN to the network group (Pi-hole
+  resolves the longest matching prefix); **observe** only reports.
+- `forti-pihole slices --propose` sizes and places slices outside the DHCP pools for the current
+  members, and lists ranked options when there is not enough room.
+
+## Safe address moves
+
+Moving a device into its slice is a journaled migration: Pi-hole entry, reservation, adopted
+administrator objects updated before the old lease is revoked (so an old address never keeps
+privileges), a single revoke of that device's lease, then observation and verification of the lease,
+firewall reach and Pi-hole group. Moves are refused when a VIP forwards to the old address, the target
+is in use, or an administrator object would need to change and is not adopted
+(`forti-pihole adopt MAC --object NAME --reservation`). `migrate MAC --dry-run` shows the steps;
+`operations show|resume|rollback ID` follow up. A device that does not renew leaves the move waiting,
+never revoked again.
+
+## Look before it writes
+
+- `forti-pihole setup` connects the FortiGate and Pi-hole (it stores the Pi-hole v6 app password in
+  forti's secret store), discovers networks and suggests a strategy and Pi-hole group mappings; it
+  writes nothing on either system.
+- `discover`, `devices`, `groups`, `networks`, `slices`, `plan` and `references` are read-only.
+- Nothing is written until `"enabled": true`; `forti-pihole pause` stops all writes; reservations and
+  migrations stay off per network until `"manage_reservations": true`.
+- Every FortiGate write goes through the forti engine (validation, verification, audit, rollback
+  plan) and honours the profile's mode: a guarded profile waits for `forti approve`.
+
+## A narrow write surface
+
+A guard transport under the engine refuses every FortiGate write outside the allowlist before it is
+sent: managed `fp-*` address objects and groups, single DHCP reservation entries (never the whole list),
+adopted host objects, lease revokes of the listed addresses, and the automation stitch inside
+`events install|remove`. In Pi-hole only client entries with the comment `managed by forti-pihole` are
+written; your own entries are read and reported (an exact-IP entry that shadows a managed range, a MAC
+entry that cannot match routed clients), and groups are never created by a sync.
+
+## Optional runtime service
+
+`forti-piholed` receives FortiGate config-change webhooks (`forti-pihole events install --url
+http://HOST:8735` creates the automation stitch and its bearer token) and runs a sync promptly, plus a
+full one every 15 minutes, with debounce, backoff and loop prevention. It runs as a systemd user unit
+or under `brew services`. It speaks plain HTTP: bind it to the management network.
+
+Requirements: a forti profile (`forti configure`, from forti-cli) and Pi-hole v6 with FTL 6.7.0 or
+newer. forti-pihole is not VLAN tagging, RADIUS or 802.1X, and creating a VLAN interface does not make
+an access point or switch tag traffic.

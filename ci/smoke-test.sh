@@ -29,7 +29,7 @@ case "$version" in
 esac
 
 "$bin" --help > "$scratch/help" 2> "$scratch/stderr" || { cat "$scratch/stderr" >&2; fail "--help exited non-zero"; }
-for command in report plan apply assign confirm status history; do
+for command in setup discover devices plan sync assign confirm status history; do
   grep -qw -- "$command" "$scratch/help" || { cat "$scratch/help" >&2; fail "--help does not list $command"; }
 done
 

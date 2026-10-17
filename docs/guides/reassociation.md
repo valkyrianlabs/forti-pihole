@@ -2,7 +2,7 @@
 title: Randomized MACs
 navTitle: Randomized MACs
 description: Why a device can come back with a new MAC address, how forti-pihole offers it as a candidate, and how confirm links it.
-order: 40
+order: 85
 status: published
 tags:
   - guides
@@ -12,7 +12,7 @@ tags:
 
 forti-pihole identifies devices by MAC address. Most current phones, tablets and laptops do not keep
 one: they use a **private (randomized) MAC address** per network, and some change it from time to time.
-When that happens the FortiGate sees a new device, and the segment you gave the old one does not follow
+When that happens the FortiGate sees a new device, and the group you gave the old one does not follow
 on its own.
 
 :::toc[On this page]{depth="2" theme="compact"}
@@ -45,23 +45,25 @@ A candidate needs the hostname match and at least 4 points. Generic hostnames (`
 `MacBook-Air` and the like, and any name more than one current device carries) are not evidence.
 
 A candidate is only a suggestion. Until you confirm it, the new address is classified on its own
-merits (protected, assignments, pins, rules or the default segment), and the old device keeps its
-object until it is retired. `forti-pihole report` lists open candidates with their ids.
+merits (protected, assignments, pins, rules or the default group), and the old device keeps its
+object until it is retired. `forti-pihole devices` lists open candidates with their ids. A candidate
+nobody decides on is dropped after 30 days.
 
 ## Confirming
 
 ```bash
-forti-pihole report                  # open candidates, with their ids
-forti-pihole confirm 1a2b3c4d        # the new address takes over the old device's segment
+forti-pihole devices                 # open candidates, with their ids
+forti-pihole confirm 1a2b3c4d        # the new address takes over the old device's group
 forti-pihole confirm 1a2b3c4d --reject   # they are different devices; never propose the pair again
 ```
 
-Confirming pins the new address to the old device's segment, including a privileged one, and retires
-the old entry at the next `apply`. [Command line](/reference/cli#confirm) has the details.
+Confirming pins the new address to the old device's group, including a privileged one, carries over
+the old device's [adoptions](/guides/migrations#adopting-administrator-objects), and retires the old
+entry at the next `sync`. [Command line](/reference/cli#confirm) has the details.
 
 :::callout[Why nothing is linked automatically]{variant="warning"}
-A hostname or a device type is trivially spoofed, and the old device may sit in a privileged segment.
-Linking addresses on a guess could move an unknown device into the segment of one you trust, so
+A hostname or a device type is trivially spoofed, and the old device may sit in a privileged group.
+Linking addresses on a guess could move an unknown device into the group of one you trust, so
 forti-pihole only proposes; a person decides.
 :::
 
@@ -70,4 +72,4 @@ forti-pihole only proposes; a person decides.
 Where you control the device, turn off the private address for your own network: on iOS and iPadOS,
 **Private Wi-Fi Address** in the network's settings; on Android, **MAC address type → Device MAC**;
 on Windows, **Random hardware addresses**; on macOS, **Private Wi-Fi address**. The device then keeps
-one address on that network, and its segment stays put.
+one address on that network, and its group, its reservation and its Pi-hole mapping stay put.
