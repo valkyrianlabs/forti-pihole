@@ -60,6 +60,8 @@ namespace fph::test {
         json dhcp = json::parse(R"([{"id": 1, "interface": "internal", "default-gateway": "192.0.2.1", "netmask": "255.255.255.0",
                                      "dns-service": "specify", "dns-server1": "198.51.100.2"}])");
 
+        json vips = json::array();
+
         // Recorded traffic.
         std::vector<json> plans;            // every plan request's operations
         std::vector<std::string> applied;   // plan ids executed
@@ -86,6 +88,7 @@ namespace fph::test {
             if (resource == "firewall.service/group") return list(service_groups);
             if (resource == "system/interface") return list(interfaces);
             if (resource == "system.dhcp/server") return list(dhcp);
+            if (resource == "firewall/vip") return list(vips);
             if (resource == "monitor/firewall/address-dynamic") {
                 auto name = request["params"].value("mkey", std::string());
                 json addrs = json::array();

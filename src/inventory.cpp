@@ -65,12 +65,25 @@ namespace fph {
         return text.empty() ? mac : text;
     }
 
+    bool Reservation::managed() const { return description.find(marker) != std::string::npos; }
+
     bool Address::managed() const { return comment.find(marker) != std::string::npos; }
     bool AddrGroup::managed() const { return comment.find(marker) != std::string::npos; }
 
     const Device* Snapshot::device(std::string_view mac) const {
         for (const auto& d: devices)
             if (d.mac == mac) return &d;
+        return nullptr;
+    }
+
+    const Interface* Snapshot::interface(std::string_view name) const {
+        auto it = interfaces.find(std::string(name));
+        return it == interfaces.end() ? nullptr : &it->second;
+    }
+
+    const DhcpServer* Snapshot::dhcp_for(std::string_view name) const {
+        for (const auto& server: dhcp)
+            if (server.interface == name && server.enabled) return &server;
         return nullptr;
     }
 
@@ -98,6 +111,9 @@ namespace fph {
             auto mac = normalize_mac(str(lease, "mac"));
             if (!mac) continue;
             leases[*mac] = {str(lease, "hostname"), str(lease, "vci"), str(lease, "ip"), flag(lease, "reserved")};
+            if (lease.value("type", std::string("ipv4")) == "ipv4")
+                snapshot.leases.push_back({str(lease, "ip"), *mac, str(lease, "hostname"), str(lease, "interface"),
+                                           flag(lease, "reserved"), number(lease, "expire_time")});
         }
 
         for (const auto& item: array_or_empty(raw.devices)) {
@@ -214,8 +230,13 @@ namespace fph {
         for (const auto& item: array_or_empty(raw.interfaces)) {
             Interface interface;
             interface.name = str(item, "name");
+            interface.alias = str(item, "alias");
+            interface.type = str(item, "type");
             interface.role = str(item, "role");
             interface.ip = str(item, "ip");
+            interface.parent = str(item, "interface");
+            interface.vlanid = static_cast<unsigned>(number(item, "vlanid"));
+            interface.up = str(item, "status") != "down";
             for (const auto& secondary: array_or_empty(item.value("secondaryip", json::array())))
                 interface.secondary.push_back(str(secondary, "ip"));
             snapshot.interfaces.emplace(interface.name, std::move(interface));
@@ -227,8 +248,28 @@ namespace fph {
             server.interface = str(item, "interface");
             server.gateway = str(item, "default-gateway");
             server.netmask = str(item, "netmask");
+            server.enabled = str(item, "status") != "disable";
             if (str(item, "dns-service") == "specify") server.dns1 = str(item, "dns-server1");
+            for (const auto& r: array_or_empty(item.value("ip-range", json::array())))
+                server.ranges.push_back({str(r, "start-ip"), str(r, "end-ip")});
+            for (const auto& r: array_or_empty(item.value("exclude-range", json::array())))
+                server.excludes.push_back({str(r, "start-ip"), str(r, "end-ip")});
+            for (const auto& r: array_or_empty(item.value("reserved-address", json::array()))) {
+                if (str(r, "type") != "mac" && !str(r, "type").empty()) continue;   // option82 entries are not per-device
+                auto mac = normalize_mac(str(r, "mac"));
+                server.reservations.push_back({static_cast<std::uint64_t>(number(r, "id")), str(r, "ip"), mac ? *mac : str(r, "mac"),
+                                               str(r, "action"), str(r, "description")});
+            }
+            if (auto acl = str(item, "mac-acl-default-action"); !acl.empty()) server.mac_acl_default = acl;
             snapshot.dhcp.push_back(std::move(server));
+        }
+
+        for (const auto& item: array_or_empty(raw.vips)) {
+            Vip vip;
+            vip.name = str(item, "name");
+            vip.extintf = str(item, "extintf");
+            for (const auto& m: array_or_empty(item.value("mappedip", json::array()))) vip.mapped.push_back(str(m, "range"));
+            snapshot.vips.push_back(std::move(vip));
         }
         return snapshot;
     }
@@ -258,9 +299,12 @@ namespace fph {
                  "srcaddr-negate", "dstaddr-negate", "service-negate", "internet-service", "users", "groups"}));
         raw.services = read_all(gateway, with_fields("firewall.service/custom", {"name", "protocol", "tcp-portrange", "udp-portrange"}));
         raw.service_groups = read_all(gateway, with_fields("firewall.service/group", {"name", "member"}));
-        raw.interfaces = read_all(gateway, with_fields("system/interface", {"name", "role", "ip", "secondaryip"}));
+        raw.interfaces = read_all(gateway, with_fields("system/interface",
+                {"name", "alias", "type", "role", "ip", "secondaryip", "interface", "vlanid", "status"}));
         raw.dhcp = read_all(gateway, with_fields("system.dhcp/server",
-                {"id", "interface", "default-gateway", "netmask", "dns-service", "dns-server1"}));
+                {"id", "status", "interface", "default-gateway", "netmask", "dns-service", "dns-server1", "ip-range", "exclude-range",
+                 "reserved-address", "mac-acl-default-action"}));
+        raw.vips = read_all(gateway, with_fields("firewall/vip", {"name", "extintf", "mappedip"}));
 
         // Dynamic objects resolve per object: the monitor answers for one mkey reliably, while a bare
         // listing can omit objects nothing references yet (observed on 7.4.8). Rule objects are

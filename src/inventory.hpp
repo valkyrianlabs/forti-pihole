@@ -80,15 +80,44 @@ namespace fph {
     };
 
     struct Interface {
-        std::string name, role, ip;   // ip: "a.b.c.d m.m.m.m"
+        std::string name, alias, type, role, ip;   // ip: "a.b.c.d m.m.m.m"
+        std::string parent;                        // VLAN / EMAC VLAN: the underlying interface
+        unsigned vlanid = 0;
+        bool up = true;
         std::vector<std::string> secondary;
+    };
+
+    struct Reservation {
+        std::uint64_t id = 0;
+        std::string ip, mac, action, description;   // action: reserved | assign | block
+        [[nodiscard]] bool managed() const;         // description carries the ownership marker
+    };
+
+    struct IpRange {
+        std::string start, end;
     };
 
     struct DhcpServer {
         std::uint64_t id = 0;
         std::string interface;
+        bool enabled = true;
         std::string dns1;   // empty when DNS is the FortiGate itself (dns-service default/local)
         std::string gateway, netmask;
+        std::vector<IpRange> ranges;     // dynamic pools
+        std::vector<IpRange> excludes;   // never handed out dynamically
+        std::vector<Reservation> reservations;
+        std::string mac_acl_default = "assign";
+    };
+
+    struct Lease {
+        std::string ip, mac, hostname, interface;
+        bool reserved = false;
+        std::int64_t expires = 0;
+    };
+
+    struct Vip {
+        std::string name, extintf;
+        std::vector<std::string> mapped;   // mapped IPs or "lo-hi" ranges
     };
 
     struct Snapshot {
@@ -99,7 +128,12 @@ namespace fph {
         std::map<std::string, Service> services;
         std::map<std::string, Interface> interfaces;
         std::vector<DhcpServer> dhcp;
+        std::vector<Lease> leases;
+        std::vector<Vip> vips;
         std::int64_t taken_at = 0;
+
+        [[nodiscard]] const Interface* interface(std::string_view name) const;
+        [[nodiscard]] const DhcpServer* dhcp_for(std::string_view interface) const;   // the enabled server on it
 
         [[nodiscard]] const Device* device(std::string_view mac) const;
         [[nodiscard]] const Address* address(std::string_view name) const;
@@ -111,7 +145,7 @@ namespace fph {
 
     // Turns raw engine reads into a Snapshot; separate so tests can feed recorded device JSON.
     struct RawReads {
-        nlohmann::json devices, leases, addresses, addrgrps, policies, services, service_groups, interfaces, dhcp;
+        nlohmann::json devices, leases, addresses, addrgrps, policies, services, service_groups, interfaces, dhcp, vips;
         std::map<std::string, nlohmann::json> dynamic;   // address name -> monitor/firewall/address-dynamic entry
     };
     Snapshot build_snapshot(const RawReads& raw, const Config& config, std::int64_t now);
