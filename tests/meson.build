@@ -14,6 +14,7 @@ if gtest_dep.found()
                             'unit/test_references.cpp',
                             'unit/test_operation.cpp',
                             'unit/test_pihole_sync.cpp',
+                            'unit/test_slicing.cpp',
                             include_directories : include_directories('support'),
                             dependencies : [fph_core_dep, gtest_dep],
                             implicit_include_directories : false)
