@@ -11,12 +11,12 @@ int main(int argc, char** argv) {
     struct rlimit no_core{0, 0};
     ::setrlimit(RLIMIT_CORE, &no_core);
 
-    fvm::Environment environment;
-    environment.gateway = [](const fvm::Config& config) { return fvm::engine_gateway(config); };
+    fph::Environment environment;
+    environment.gateway = [](const fph::Config& config) { return fph::engine_gateway(config); };
     environment.clock = [] {
         return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     };
     environment.out = &std::cout;
     environment.err = &std::cerr;
-    return fvm::run(std::vector<std::string>(argv + 1, argv + argc), environment);
+    return fph::run(std::vector<std::string>(argv + 1, argv + argc), environment);
 }

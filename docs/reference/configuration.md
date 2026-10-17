@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: Every key of $FORTI_HOME/vlan-mac/config.json, with an example.
+description: Every key of $FORTI_HOME/pihole/config.json, with an example.
 order: 95
 status: published
 tags:
@@ -9,9 +9,9 @@ tags:
 
 # Configuration
 
-forti-vlan-mac reads one JSON file, `$FORTI_HOME/vlan-mac/config.json` (by default
-`~/.forti/vlan-mac/config.json`), or the file `--config PATH` names. `forti-vlan-mac init` writes a
-starting one, and the package installs an example at `/usr/share/forti-vlan-mac/config.example.json`.
+forti-pihole reads one JSON file, `$FORTI_HOME/pihole/config.json` (by default
+`~/.forti/pihole/config.json`), or the file `--config PATH` names. `forti-pihole init` writes a
+starting one, and the package installs an example at `/usr/share/forti-pihole/config.example.json`.
 Device profiles and credentials are not in this file: they are the forti home's, managed with
 `forti configure`.
 
@@ -27,7 +27,7 @@ an invalid file names the offending key.
 ```json
 {
   "profile": "home",
-  "prefix": "mvlan-",
+  "prefix": "fp-",
   "interfaces": ["internal"],
   "default_segment": "default",
   "segments": [
@@ -60,7 +60,7 @@ an invalid file names the offending key.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `prefix` | `mvlan-` | The name prefix of every managed object: device objects `<prefix>dev-*`, segment groups `<prefix>seg-<segment>`, rule objects `<prefix>rule-<segment>-<label>` |
+| `prefix` | `fp-` | The name prefix of every managed object: device objects `<prefix>dev-*`, segment groups `<prefix>seg-<segment>`, rule objects `<prefix>rule-<segment>-<label>` |
 | `adopt_existing` | `true` | When you already have an address object for exactly one device's MAC, use it as the device's member of its segment group instead of creating a `<prefix>dev-*` object. Your object is referenced, never modified ([Safety](/guides/safety#the-ownership-marker)) |
 
 ## Devices
@@ -68,8 +68,8 @@ an invalid file names the offending key.
 | Key | Default | Meaning |
 |---|---|---|
 | `interfaces` | `["internal"]` | Only devices the FortiGate detected on these interfaces are managed |
-| `protected` | `[]` | MAC addresses forti-vlan-mac never classifies or moves |
-| `assignments` | `{}` | Fixed assignments, MAC address to segment, for example `{"00:11:22:33:44:55": "trusted"}`. They outrank `forti-vlan-mac assign`, GUI moves and rules |
+| `protected` | `[]` | MAC addresses forti-pihole never classifies or moves |
+| `assignments` | `{}` | Fixed assignments, MAC address to segment, for example `{"00:11:22:33:44:55": "trusted"}`. They outrank `forti-pihole assign`, GUI moves and rules |
 | `retire_after_days` | `30` | How long a device may go unseen before its managed object is retired (1 to 3650) |
 | `max_changes` | `50` | At most this many devices change per `apply`; the rest wait for the next run (1 to 1000). `apply --max-changes` overrides it |
 
@@ -83,7 +83,7 @@ group `<prefix>seg-<name>`.
 |---|---|
 | `name` | Lower-case letters, digits and `_`, at most 32 characters. Used in the group name and in rules |
 | `description` | Free text, shown in reports |
-| `privileged` | `true` for a segment that only an explicit decision may put a device into: an entry in `assignments`, `forti-vlan-mac assign`, a confirmed reassociation or a move in the GUI. A configuration rule that targets a privileged segment is refused; a GUI rule object that names one is ignored with a warning |
+| `privileged` | `true` for a segment that only an explicit decision may put a device into: an entry in `assignments`, `forti-pihole assign`, a confirmed reassociation or a move in the GUI. A configuration rule that targets a privileged segment is refused; a GUI rule object that names one is ignored with a warning |
 | `subnet` | Documentation only, such as `"192.168.30.0/24"`: the subnet you intend for the segment. It is not acted on (see [Not yet available](#not-yet-available)) |
 
 `default_segment` (default `default`) names the segment for every device nothing else placed,
@@ -123,5 +123,5 @@ The full precedence between protected devices, assignments, rules and the defaul
 
 :::callout[DHCP subnet assignment]{variant="info"}
 Giving each segment its own DHCP range or subnet is **not yet available: under evaluation**. A
-segment's `subnet` only documents your intent; forti-vlan-mac never writes DHCP settings.
+segment's `subnet` only documents your intent; forti-pihole never writes DHCP settings.
 :::

@@ -6,8 +6,8 @@
 // hide a lost route.
 //
 
-#ifndef FORTI_VLAN_MAC_ADDRESS_MATCH_HPP
-#define FORTI_VLAN_MAC_ADDRESS_MATCH_HPP
+#ifndef FORTI_PIHOLE_ADDRESS_MATCH_HPP
+#define FORTI_PIHOLE_ADDRESS_MATCH_HPP
 
 #include "inventory.hpp"
 
@@ -16,7 +16,7 @@
 #include <string>
 #include <string_view>
 
-namespace fvm {
+namespace fph {
 
     struct Endpoint {
         std::string mac;   // empty for a destination
@@ -30,6 +30,6 @@ namespace fvm {
 
     bool address_covers(const Snapshot& snapshot, std::string_view name, const Endpoint& endpoint);
 
-}  // namespace fvm
+}  // namespace fph
 
-#endif  // FORTI_VLAN_MAC_ADDRESS_MATCH_HPP
+#endif  // FORTI_PIHOLE_ADDRESS_MATCH_HPP

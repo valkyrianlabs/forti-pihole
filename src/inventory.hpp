@@ -5,8 +5,8 @@
 // connectivity check simulates. Read-only.
 //
 
-#ifndef FORTI_VLAN_MAC_INVENTORY_HPP
-#define FORTI_VLAN_MAC_INVENTORY_HPP
+#ifndef FORTI_PIHOLE_INVENTORY_HPP
+#define FORTI_PIHOLE_INVENTORY_HPP
 
 #include "config.hpp"
 #include "gateway.hpp"
@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 
-namespace fvm {
+namespace fph {
 
     // A device counts as online when FortiOS says so and saw it within this many seconds.
     inline constexpr std::int64_t online_window = 3600;
@@ -116,6 +116,6 @@ namespace fvm {
     };
     Snapshot build_snapshot(const RawReads& raw, const Config& config, std::int64_t now);
 
-}  // namespace fvm
+}  // namespace fph
 
-#endif  // FORTI_VLAN_MAC_INVENTORY_HPP
+#endif  // FORTI_PIHOLE_INVENTORY_HPP

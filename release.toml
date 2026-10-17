@@ -7,9 +7,9 @@ schema_version = 1
 requires = ">=0.5,<1"
 
 [project]
-name = "forti-vlan-mac"
-package = "forti-vlan-mac"
-repository = "valkyrianlabs/forti-vlan-mac"
+name = "forti-pihole"
+package = "forti-pihole"
+repository = "valkyrianlabs/forti-pihole"
 
 # meson.build reads VERSION itself (`version : files('VERSION')`), so no other file carries it.
 [version]
@@ -47,18 +47,18 @@ build_excludes = [
 ]
 
 [[debian.packages]]
-name = "forti-vlan-mac"
+name = "forti-pihole"
 # One architecture per package contract (vl-release 0.5): amd64 only until vl-release accepts one
 # .deb per architecture of the same package (.claude/context/release.md, "Multi-architecture").
 architecture = "amd64"
 # The executable, the systemd user units the operator opts into (installed, never enabled) and the
 # example configuration.
 required_paths = [
-  "usr/bin/forti-vlan-mac",
-  "usr/share/doc/forti-vlan-mac/copyright",
-  "usr/lib/systemd/user/forti-vlan-mac.service",
-  "usr/lib/systemd/user/forti-vlan-mac.timer",
-  "usr/share/forti-vlan-mac/config.example.json",
+  "usr/bin/forti-pihole",
+  "usr/share/doc/forti-pihole/copyright",
+  "usr/lib/systemd/user/forti-pihole.service",
+  "usr/lib/systemd/user/forti-pihole.timer",
+  "usr/share/forti-pihole/config.example.json",
 ]
 # An executable package: the engine is internal and static, so no headers, libraries or pkg-config
 # files ship; forti-cli's own executable and man page never come along (the subproject builds no
@@ -104,7 +104,7 @@ name = "{package}-{version}.tar.gz"
 exclude = [".claude", ".agents"]
 
 [homebrew]
-formula = "packaging/homebrew/forti-vlan-mac.rb"
+formula = "packaging/homebrew/forti-pihole.rb"
 tap = "valkyrianlabs/homebrew-tap"
-tap_path = "Formula/forti-vlan-mac.rb"
+tap_path = "Formula/forti-pihole.rb"
 source = "release-asset"

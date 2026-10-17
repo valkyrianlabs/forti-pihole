@@ -1,6 +1,6 @@
 ---
 title: Install
-description: Install forti-vlan-mac from the APT repository or Homebrew, or build it from source.
+description: Install forti-pihole from the APT repository or Homebrew, or build it from source.
 order: 10
 status: published
 tags:
@@ -9,13 +9,13 @@ tags:
 
 # Install
 
-forti-vlan-mac is a single executable, `forti-vlan-mac`. libcurl is its only runtime dependency. On
+forti-pihole is a single executable, `forti-pihole`. libcurl is its only runtime dependency. On
 Linux the package also ships a systemd user service and timer, which you enable yourself. Install it
 from the ValkyrianLabs APT repository, from Homebrew, or build it from source, then check the version
 it reports.
 
 :::callout[Install forti as well]{variant="info"}
-forti-vlan-mac connects to the FortiGate with a device profile from the forti home (`~/.forti`). You
+forti-pihole connects to the FortiGate with a device profile from the forti home (`~/.forti`). You
 create that profile, and its credentials, with `forti configure` from the forti-cli package. The APT
 package recommends `forti-cli`, so APT installs it by default.
 :::
@@ -29,7 +29,7 @@ package recommends `forti-cli`, so APT installs it by default.
 }
 
 :::tab[Debian and Ubuntu (APT)]{value="apt"}
-`forti-vlan-mac` is published to the ValkyrianLabs APT repository (amd64):
+`forti-pihole` is published to the ValkyrianLabs APT repository (amd64):
 
 ```bash
 sudo install -d -m 0755 /etc/apt/keyrings
@@ -41,7 +41,7 @@ echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt
   sudo tee /etc/apt/sources.list.d/valkyrianlabs.list > /dev/null
 
 sudo apt update
-sudo apt install -y forti-vlan-mac
+sudo apt install -y forti-pihole
 ```
 
 The package recommends `forti-cli` and `valkyrianlabs-archive-keyring`. The keyring package keeps the
@@ -52,24 +52,24 @@ The package installs:
 
 | Path | What |
 |---|---|
-| `/usr/bin/forti-vlan-mac` | The program |
-| `/usr/lib/systemd/user/forti-vlan-mac.service` | One `apply --quiet` run |
-| `/usr/lib/systemd/user/forti-vlan-mac.timer` | Starts the service every 15 minutes, once you enable it |
-| `/usr/share/forti-vlan-mac/config.example.json` | A starting point for your configuration |
+| `/usr/bin/forti-pihole` | The program |
+| `/usr/lib/systemd/user/forti-pihole.service` | One `apply --quiet` run |
+| `/usr/lib/systemd/user/forti-pihole.timer` | Starts the service every 15 minutes, once you enable it |
+| `/usr/share/forti-pihole/config.example.json` | A starting point for your configuration |
 
 Installing the package never enables the timer for anyone.
 :::
 
 :::tab[Homebrew (macOS)]{value="homebrew"}
 ```bash
-brew install valkyrianlabs/tap/forti-cli valkyrianlabs/tap/forti-vlan-mac
+brew install valkyrianlabs/tap/forti-cli valkyrianlabs/tap/forti-pihole
 ```
 
 Recent Homebrew versions ask you to trust a third-party tap first (`brew trust valkyrianlabs/tap`).
 
-macOS has no systemd, so no timer is installed. Run `forti-vlan-mac apply` yourself or from a
+macOS has no systemd, so no timer is installed. Run `forti-pihole apply` yourself or from a
 scheduler you already use. The example configuration is in
-`$(brew --prefix)/share/forti-vlan-mac/config.example.json`.
+`$(brew --prefix)/share/forti-pihole/config.example.json`.
 :::
 
 :::tab[From source]{value="source"}
@@ -88,8 +88,8 @@ Meson fetches the engine at configure time: forti-cli's source at the commit
 `forti-api` formula) when one is present, else from its own wrap.
 
 On Linux, `meson install` also installs the user units into `<prefix>/lib/systemd/user`. Their
-`ExecStart` names `/usr/bin/forti-vlan-mac`; with another prefix, point it at your binary with
-`systemctl --user edit forti-vlan-mac.service`.
+`ExecStart` names `/usr/bin/forti-pihole`; with another prefix, point it at your binary with
+`systemctl --user edit forti-pihole.service`.
 :::
 
 :::
@@ -97,11 +97,11 @@ On Linux, `meson install` also installs the user units into `<prefix>/lib/system
 ## Check the installation
 
 ```bash
-forti-vlan-mac --version
+forti-pihole --version
 ```
 
 ```text
-forti-vlan-mac 0.1.0 (engine forti-cli 468f9e1, forti-api 1.1.1)
+forti-pihole 0.1.0 (engine forti-cli 468f9e1, forti-api 1.1.1)
 ```
 
 The version line names what the binary was built from: the forti-cli engine revision and the
@@ -109,15 +109,15 @@ forti-api version. A build from a modified engine checkout shows the revision wi
 
 ## Where it keeps its files
 
-forti-vlan-mac uses the **forti home**: `~/.forti`, or the directory `$FORTI_HOME` names. Device
+forti-pihole uses the **forti home**: `~/.forti`, or the directory `$FORTI_HOME` names. Device
 profiles and credentials are the ones `forti configure` manages there. Its own files live in
-`vlan-mac/` inside the home:
+`pihole/` inside the home:
 
 | Path | What |
 |---|---|
-| `$FORTI_HOME/vlan-mac/config.json` | Your configuration ([Configuration](/reference/configuration)) |
-| `$FORTI_HOME/vlan-mac/state.json` | What it has learned about each device between runs |
-| `$FORTI_HOME/vlan-mac/history.jsonl` | One line per apply (`forti-vlan-mac history`) |
+| `$FORTI_HOME/pihole/config.json` | Your configuration ([Configuration](/reference/configuration)) |
+| `$FORTI_HOME/pihole/state.json` | What it has learned about each device between runs |
+| `$FORTI_HOME/pihole/history.jsonl` | One line per apply (`forti-pihole history`) |
 
 `--config PATH` reads another configuration file ([Command line](/reference/cli)).
 

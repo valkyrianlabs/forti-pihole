@@ -1,4 +1,4 @@
-# Release forti-vlan-mac with vl-release (.claude/context/release.md).
+# Release forti-pihole with vl-release (.claude/context/release.md).
 #
 #   vlr cut patch|minor|major|X.Y.Z --push      (locally) -> pushes vX.Y.Z -> this workflow
 #
@@ -17,7 +17,7 @@
 #   vars.NEXUS_APT_REPO                          Nexus APT upload URL
 #   secrets.HOMEBREW_TAP_TOKEN                   push access to valkyrianlabs/homebrew-tap
 #   vars.RELEASE_PUBLISH_MODE   (optional)       `nexus` (default here) or `disabled`
-#   vars.VL_DOCS_ENDPOINT                        pmdocs sync endpoint; the forti-vlan-mac docs set must trust
+#   vars.VL_DOCS_ENDPOINT                        pmdocs sync endpoint; the forti-pihole docs set must trust
 #                                                this repository's release workflow over OIDC
 # and a `Production` environment on this repository (publish-apt, homebrew-tap, docs).
 
@@ -81,7 +81,7 @@ jobs:
       - name: Release gate
         run: |
           vlr check --release --tag "${RELEASE_REF#refs/tags/}"
-          pmdocs validate --source forti-vlan-mac
+          pmdocs validate --source forti-pihole
 
       - name: Prepare release documents (work tree only)
         run: vlr prepare --record release/meta/prepare.json
@@ -116,7 +116,7 @@ jobs:
           vlr artifacts
 
       # Install the built .deb into a clean, stock Ubuntu 24.04 (container root, no host access): its
-      # runtime dependencies must come from the Ubuntu archive alone, forti-vlan-mac must work offline, and
+      # runtime dependencies must come from the Ubuntu archive alone, forti-pihole must work offline, and
       # it must report the engine revision the wrap pins.
       - name: Clean-install smoke test of the built package
         shell: bash
@@ -124,14 +124,14 @@ jobs:
           # shellcheck disable=SC2016  # expanded inside the container
           ./ci/run-ci --image "$UBUNTU_IMAGE" --root bash -euo pipefail -c '
             apt-get update
-            apt-get install -y --no-install-recommends ./release/forti-vlan-mac_*_amd64.deb
+            apt-get install -y --no-install-recommends ./release/forti-pihole_*_amd64.deb
             pinned="$(sed -n "s/^revision *= *//p" subprojects/forti-cli.wrap | cut -c1-7)"
-            /usr/bin/forti-vlan-mac --version | grep -F "(engine forti-cli $pinned, forti-api "
-            ci/smoke-test.sh /usr/bin/forti-vlan-mac
+            /usr/bin/forti-pihole --version | grep -F "(engine forti-cli $pinned, forti-api "
+            ci/smoke-test.sh /usr/bin/forti-pihole
             # The user units ship, and installing the package never enables them.
-            test -f /usr/lib/systemd/user/forti-vlan-mac.service
-            test -f /usr/lib/systemd/user/forti-vlan-mac.timer
-            test ! -e /etc/systemd/user/timers.target.wants/forti-vlan-mac.timer
+            test -f /usr/lib/systemd/user/forti-pihole.service
+            test -f /usr/lib/systemd/user/forti-pihole.timer
+            test ! -e /etc/systemd/user/timers.target.wants/forti-pihole.timer
           '
 
       # Read-only: plans against the live index and fails now if this version was already published
@@ -141,7 +141,7 @@ jobs:
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: forti-vlan-mac-${{ steps.state.outputs.version }}
+          name: forti-pihole-${{ steps.state.outputs.version }}
           path: release
           if-no-files-found: error
 
@@ -178,14 +178,14 @@ jobs:
           if brew commands --quiet | grep -qx trust; then brew trust valkyrianlabs/tap; fi
           HOMEBREW_NO_AUTO_UPDATE=1 brew install --build-from-source valkyrianlabs/tap/forti-api
           # The formula under test lives in a throwaway tap; with the published one also present, `brew bottle`
-          # resolves forti-vlan-mac by bare name on some runners and stops ("found in multiple taps"). Only this
+          # resolves forti-pihole by bare name on some runners and stops ("found in multiple taps"). Only this
           # runner's disposable clone of the tap is changed.
-          rm -f "$(brew --repository valkyrianlabs/tap)/Formula/forti-vlan-mac.rb"
+          rm -f "$(brew --repository valkyrianlabs/tap)/Formula/forti-pihole.rb"
           bash .github/scripts/homebrew-local-install.sh
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: forti-vlan-mac-bottle-${{ needs.build.outputs.version }}-${{ matrix.os }}
+          name: forti-pihole-bottle-${{ needs.build.outputs.version }}-${{ matrix.os }}
           path: bottle
           if-no-files-found: error
 
@@ -200,7 +200,7 @@ jobs:
         shell: bash ./ci/run-ci bash -euo pipefail {0}
     # One APT publication at a time across tags; queued, never cancelled.
     concurrency:
-      group: forti-vlan-mac-apt-publish
+      group: forti-pihole-apt-publish
       cancel-in-progress: false
     env:
       RELEASE_PUBLISH_MODE: ${{ vars.RELEASE_PUBLISH_MODE || 'nexus' }}
@@ -218,7 +218,7 @@ jobs:
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: forti-vlan-mac-${{ needs.build.outputs.version }}
+          name: forti-pihole-${{ needs.build.outputs.version }}
           path: release
 
       # Upload (or skip if identical bytes are already published), then poll the index until the
@@ -243,11 +243,11 @@ jobs:
             echo "deb [signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" \
               > /etc/apt/sources.list.d/valkyrianlabs.list
             apt-get update
-            apt-get install -y "forti-vlan-mac=$DEBIAN_VERSION"
-            ci/smoke-test.sh /usr/bin/forti-vlan-mac
+            apt-get install -y "forti-pihole=$DEBIAN_VERSION"
+            ci/smoke-test.sh /usr/bin/forti-pihole
           '
 
-  # The docs package (docs/, docs set slug forti-vlan-mac, never inferred) to the ValkyrianLabs docs site over
+  # The docs package (docs/, docs set slug forti-pihole, never inferred) to the ValkyrianLabs docs site over
   # GitHub OIDC (vars.VL_DOCS_ENDPOINT; the docs set trusts this repository's release workflow). Sync
   # is idempotent, so retrying is safe; a failed push does not affect the published packages.
   docs:
@@ -272,9 +272,9 @@ jobs:
       - name: Validate and publish the docs package
         run: |
           if [ -z "$VL_DOCS_ENDPOINT" ]; then echo "::error::vars.VL_DOCS_ENDPOINT is not set"; exit 1; fi
-          pmdocs validate --source forti-vlan-mac
+          pmdocs validate --source forti-pihole
           for attempt in 1 2 3; do
-            if timeout 300 pmdocs push --endpoint "$VL_DOCS_ENDPOINT" --source forti-vlan-mac --github-oidc --publish; then
+            if timeout 300 pmdocs push --endpoint "$VL_DOCS_ENDPOINT" --source forti-pihole --github-oidc --publish; then
               exit 0
             fi
             echo "pmdocs push attempt ${attempt}/3 failed; retrying in $((attempt * 20))s"
@@ -302,12 +302,12 @@ jobs:
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: forti-vlan-mac-${{ needs.build.outputs.version }}
+          name: forti-pihole-${{ needs.build.outputs.version }}
           path: release
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: forti-vlan-mac-bottle-${{ needs.build.outputs.version }}-*
+          pattern: forti-pihole-bottle-${{ needs.build.outputs.version }}-*
           merge-multiple: true
           path: bottle
 
@@ -337,7 +337,7 @@ jobs:
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: forti-vlan-mac-${{ needs.build.outputs.version }}
+          name: forti-pihole-${{ needs.build.outputs.version }}
           path: release
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -351,7 +351,7 @@ jobs:
       # committing; refuses to change a formula version that is already published.
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: forti-vlan-mac-bottle-${{ needs.build.outputs.version }}-*
+          pattern: forti-pihole-bottle-${{ needs.build.outputs.version }}-*
           merge-multiple: true
           path: bottle
 
@@ -359,7 +359,7 @@ jobs:
       - name: Publish the formula
         run: |
           vlr prepare
-          python3 .github/scripts/homebrew-bottle-block.py release/homebrew/forti-vlan-mac.rb bottle/*.bottle.json
+          python3 .github/scripts/homebrew-bottle-block.py release/homebrew/forti-pihole.rb bottle/*.bottle.json
           vlr homebrew publish --tap-dir homebrew-tap
 
   finalize:
@@ -379,7 +379,7 @@ jobs:
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: forti-vlan-mac-${{ needs.build.outputs.version }}
+          name: forti-pihole-${{ needs.build.outputs.version }}
           path: release
 
       # Re-prepare (deterministic), prove it matches what was built and published, then commit the

@@ -1,4 +1,4 @@
-# forti-cli provides forti-engine, the command engine forti-vlan-mac links statically. Only the
+# forti-cli provides forti-engine, the command engine forti-pihole links statically. Only the
 # engine is built when forti-cli is a subproject. For co-development, replace subprojects/forti-cli
 # with a checkout or a symlink to ../forti-cli; Meson then uses it instead of downloading.
 [wrap-git]

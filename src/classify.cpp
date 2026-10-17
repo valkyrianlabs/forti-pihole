@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <format>
 
-namespace fvm {
+namespace fph {
 
     namespace {
 
@@ -195,7 +195,7 @@ namespace fvm {
             if (record && !record->object.empty())
                 if (const Address* a = snapshot.address(record->object); a && a->managed() && !single_mac(*a, mac))
                     result.warnings.push_back(std::format(
-                            "{} no longer holds only {} ({}); it was edited outside forti-vlan-mac and is left as it is",
+                            "{} no longer holds only {} ({}); it was edited outside forti-pihole and is left as it is",
                             record->object, mac, device.label()));
 
             // 1. protected
@@ -274,7 +274,7 @@ namespace fvm {
                 decision.detail = pin->source;
                 decision.reasons.push_back(pin->source == "gui" ? "operator placement in the FortiGate GUI"
                                            : pin->source == "confirm" ? "confirmed reassociation"
-                                                                      : "explicit assignment (forti-vlan-mac assign)");
+                                                                      : "explicit assignment (forti-pihole assign)");
             } else if (!decision.matches.empty()) {
                 const auto& top = decision.matches.front();
                 std::vector<std::string> rivals;
@@ -316,4 +316,4 @@ namespace fvm {
         return result;
     }
 
-}  // namespace fvm
+}  // namespace fph

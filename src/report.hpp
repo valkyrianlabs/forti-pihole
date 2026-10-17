@@ -4,8 +4,8 @@
 // renderer strips control characters so a hostname cannot rewrite the terminal.
 //
 
-#ifndef FORTI_VLAN_MAC_REPORT_HPP
-#define FORTI_VLAN_MAC_REPORT_HPP
+#ifndef FORTI_PIHOLE_REPORT_HPP
+#define FORTI_PIHOLE_REPORT_HPP
 
 #include "classify.hpp"
 #include "config.hpp"
@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-namespace fvm {
+namespace fph {
 
     struct Run {
         const Snapshot* snapshot = nullptr;
@@ -35,6 +35,6 @@ namespace fvm {
     // Strips control characters and bounds length (device-provided text).
     std::string safe(std::string_view text, std::size_t limit = 64);
 
-}  // namespace fvm
+}  // namespace fph
 
-#endif  // FORTI_VLAN_MAC_REPORT_HPP
+#endif  // FORTI_PIHOLE_REPORT_HPP

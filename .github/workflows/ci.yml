@@ -51,16 +51,16 @@ jobs:
       - name: The formula's forti-cli resource is the wrap's revision
         run: bash packaging/forti-cli-pin.sh check --download
 
-      # Seconds: the docs package (docs set slug forti-vlan-mac, published by release.yml). Pushes to main
+      # Seconds: the docs package (docs set slug forti-pihole, published by release.yml). Pushes to main
       # also send a dry-run sync over GitHub OIDC (endpoint, slug and trust, no writes); the docs set does
       # not accept OIDC tokens from pull_request events, so PRs validate only.
       - name: Docs package
         env:
           VL_DOCS_ENDPOINT: ${{ vars.VL_DOCS_ENDPOINT }}
         run: |
-          pmdocs validate --source forti-vlan-mac
+          pmdocs validate --source forti-pihole
           if [ "${{ github.event_name }}" = push ] && [ -n "$VL_DOCS_ENDPOINT" ]; then
-            pmdocs push --endpoint "$VL_DOCS_ENDPOINT" --source forti-vlan-mac --github-oidc --dry-run
+            pmdocs push --endpoint "$VL_DOCS_ENDPOINT" --source forti-pihole --github-oidc --dry-run
           fi
 
       - name: Toolchain
@@ -80,7 +80,7 @@ jobs:
             echo "a test was skipped" >&2
             exit 1
           fi
-          ci/smoke-test.sh build/ci/src/forti-vlan-mac
+          ci/smoke-test.sh build/ci/src/forti-pihole
           ccache --show-stats | head -5
 
   macos:
@@ -113,5 +113,5 @@ jobs:
             echo "a test was skipped" >&2
             exit 1
           fi
-          ci/smoke-test.sh build/src/forti-vlan-mac
+          ci/smoke-test.sh build/src/forti-pihole
           ccache --show-stats | head -5

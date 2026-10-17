@@ -12,7 +12,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-namespace fvm {
+namespace fph {
 
     using json = nlohmann::json;
     namespace fs = std::filesystem;
@@ -136,7 +136,7 @@ namespace fvm {
         // Before `forti home migrate` (legacy XDG layout) there is no home; keep our files with the
         // engine's state so they still sit beside the plans and audit log.
         fs::path base = paths.home.empty() ? paths.state : paths.home;
-        return {base / "vlan-mac"};
+        return {base / "pihole"};
     }
 
     State load_state(const fs::path& path) {
@@ -205,7 +205,7 @@ namespace fvm {
         if (::flock(fd_, LOCK_EX | LOCK_NB) != 0) {
             ::close(fd_);
             fd_ = -1;
-            throw StateError("another forti-vlan-mac run is in progress");
+            throw StateError("another forti-pihole run is in progress");
         }
     }
 
@@ -213,4 +213,4 @@ namespace fvm {
         if (fd_ >= 0) ::close(fd_);
     }
 
-}  // namespace fvm
+}  // namespace fph

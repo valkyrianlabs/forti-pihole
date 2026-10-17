@@ -4,14 +4,14 @@
 // first, because FortiOS accepts and echoes several spellings (upper case, '-' separators).
 //
 
-#ifndef FORTI_VLAN_MAC_MAC_HPP
-#define FORTI_VLAN_MAC_MAC_HPP
+#ifndef FORTI_PIHOLE_MAC_HPP
+#define FORTI_PIHOLE_MAC_HPP
 
 #include <optional>
 #include <string>
 #include <string_view>
 
-namespace fvm {
+namespace fph {
 
     // "AA-BB-cc:dd:EE:ff" -> "aa:bb:cc:dd:ee:ff"; nullopt when it is not a MAC address.
     std::optional<std::string> normalize_mac(std::string_view text);
@@ -29,6 +29,6 @@ namespace fvm {
     // True when `mac` falls in a FortiOS macaddr entry: one address, or a range "lo-hi".
     bool mac_in_entry(std::string_view mac, std::string_view entry);
 
-}  // namespace fvm
+}  // namespace fph
 
-#endif  // FORTI_VLAN_MAC_MAC_HPP
+#endif  // FORTI_PIHOLE_MAC_HPP

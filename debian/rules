@@ -1,5 +1,5 @@
 #!/usr/bin/make -f
-# forti-vlan-mac against the system forti-api (libforti-api-dev), with the engine compiled from
+# forti-pihole against the system forti-api (libforti-api-dev), with the engine compiled from
 # subprojects/forti-cli: forti-cli at exactly the revision subprojects/forti-cli.wrap pins, put there and
 # verified by `packaging/forti-cli-pin.sh vendor` before the build (release.toml debian.pre_build).
 # --wrap-mode=nodownload keeps the build offline: a missing engine source, or a missing or too-old
@@ -36,7 +36,7 @@ endif
 
 # The systemd user units are installed by meson (usr/lib/systemd/user) but must never be enabled by
 # the package: reconciling a FortiGate is an operator's decision, made per user with
-# `systemctl --user enable --now forti-vlan-mac.timer`. dh_installsystemduser would enable them for
+# `systemctl --user enable --now forti-pihole.timer`. dh_installsystemduser would enable them for
 # every user, so it does not run.
 override_dh_installsystemduser:
 

@@ -1,7 +1,7 @@
 ---
 title: Building and testing
 navTitle: Testing
-description: Build forti-vlan-mac, run its tests, CI, and the rule for live-device checks.
+description: Build forti-pihole, run its tests, CI, and the rule for live-device checks.
 order: 110
 status: published
 tags:
@@ -10,16 +10,16 @@ tags:
 
 # Building and testing
 
-Build forti-vlan-mac for development, run its tests, and keep package builds on the pinned engine.
+Build forti-pihole for development, run its tests, and keep package builds on the pinned engine.
 
 ```bash
 meson setup build/dev -Dtests=enabled --buildtype=debugoptimized
 meson compile -C build/dev -j "$(ci/build-jobs)"
 meson test -C build/dev --print-errorlogs
-ci/smoke-test.sh build/dev/src/forti-vlan-mac
+ci/smoke-test.sh build/dev/src/forti-pihole
 ```
 
-forti-vlan-mac is C++23 built with Meson (1.3 or newer), tested with GCC 13 and newer and Apple Clang.
+forti-pihole is C++23 built with Meson (1.3 or newer), tested with GCC 13 and newer and Apple Clang.
 It needs libcurl, and GoogleTest for the tests. No test contacts a FortiGate.
 
 :::toc[On this page]{depth="2" theme="compact"}
@@ -27,7 +27,7 @@ It needs libcurl, and GoogleTest for the tests. No test contacts a FortiGate.
 
 ## The engine: a pinned subproject
 
-forti-vlan-mac does not implement FortiOS semantics. It compiles forti-cli's command engine (`engine/`,
+forti-pihole does not implement FortiOS semantics. It compiles forti-cli's command engine (`engine/`,
 Meson dependency `forti-engine`) from source, as the subproject `subprojects/forti-cli`, and links it
 statically, exactly as forti-mcp does. The engine brings forti-api, the header-only SDK, with it.
 
@@ -102,7 +102,7 @@ exactly once, unoptimized (`-O0`, warnings as errors), and runs every suite agai
 
 - **Linux** (Ubuntu 24.04, GCC 13, in a disposable Podman container on the self-hosted runner,
   `ci/run-ci`): first shellcheck, `packaging/forti-cli-pin.sh check --download` and
-  `pmdocs validate --source forti-vlan-mac`; then the build with AddressSanitizer and
+  `pmdocs validate --source forti-pihole`; then the build with AddressSanitizer and
   UndefinedBehaviorSanitizer, every suite, and `ci/smoke-test.sh`. A skipped test fails the job.
 - **macOS** (Apple Clang): the same build without sanitizers, the same suites and the smoke test.
 
@@ -113,9 +113,9 @@ smoke test there, and check that the systemd user units are installed and not en
 
 ## Docs
 
-The docs package (`docs/`, docs set `forti-vlan-mac`) is validated in CI and published by the release
+The docs package (`docs/`, docs set `forti-pihole`) is validated in CI and published by the release
 workflow:
 
 ```bash
-pmdocs validate --source forti-vlan-mac
+pmdocs validate --source forti-pihole
 ```

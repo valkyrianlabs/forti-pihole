@@ -1,8 +1,8 @@
-# Runs forti-vlan-mac.service every 15 minutes (a systemd *user* timer). Never enabled by the
-# package; opt in with: systemctl --user enable --now forti-vlan-mac.timer
+# Runs forti-pihole.service every 15 minutes (a systemd *user* timer). Never enabled by the
+# package; opt in with: systemctl --user enable --now forti-pihole.timer
 [Unit]
 Description=Reconcile FortiGate device segments every 15 minutes
-Documentation=https://github.com/valkyrianlabs/forti-vlan-mac
+Documentation=https://github.com/valkyrianlabs/forti-pihole
 
 [Timer]
 OnCalendar=*:0/15

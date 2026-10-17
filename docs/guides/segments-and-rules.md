@@ -1,6 +1,6 @@
 ---
 title: Segments and rules
-description: The FortiOS objects forti-vlan-mac keeps, the rule objects you create in the GUI, and the precedence that puts a device in a segment.
+description: The FortiOS objects forti-pihole keeps, the rule objects you create in the GUI, and the precedence that puts a device in a segment.
 order: 30
 status: published
 tags:
@@ -9,7 +9,7 @@ tags:
 
 # Segments and rules
 
-A **segment** is a named group of devices, such as `iot`, `guest` or `trusted`. forti-vlan-mac keeps
+A **segment** is a named group of devices, such as `iot`, `guest` or `trusted`. forti-pihole keeps
 every device the FortiGate has seen in exactly one segment, and keeps that membership in native FortiOS
 objects that your policies can use.
 
@@ -20,30 +20,30 @@ objects that your policies can use.
 
 | Object | FortiOS type | Name | Who writes it |
 |---|---|---|---|
-| Device | `firewall/address`, type MAC | `mvlan-dev-*` | forti-vlan-mac |
-| Segment | `firewall/addrgrp` | `mvlan-seg-<segment>` | forti-vlan-mac |
-| Rule | `firewall/address`, type dynamic, sub-type device identification | `mvlan-rule-<segment>-<label>` | You, in the GUI |
+| Device | `firewall/address`, type MAC | `fp-dev-*` | forti-pihole |
+| Segment | `firewall/addrgrp` | `fp-seg-<segment>` | forti-pihole |
+| Rule | `firewall/address`, type dynamic, sub-type device identification | `fp-rule-<segment>-<label>` | You, in the GUI |
 
-`mvlan-` is the default prefix (`prefix` in [Configuration](/reference/configuration)). Every device
-and segment object forti-vlan-mac writes carries the comment `managed by forti-vlan-mac`; that marker,
+`fp-` is the default prefix (`prefix` in [Configuration](/reference/configuration)). Every device
+and segment object forti-pihole writes carries the comment `managed by forti-pihole`; that marker,
 together with the prefix, is what lets it change an object at all ([Safety](/guides/safety)).
 
 - **Device objects** hold one device's MAC address. Each is a member of exactly one segment group.
 - **Segment groups** are ordinary address groups. Reference them in policies like any other group.
-- **Rule objects** are yours. forti-vlan-mac reads them and never changes or deletes them.
+- **Rule objects** are yours. forti-pihole reads them and never changes or deletes them.
 
 ## Rule objects from the GUI
 
 FortiOS can describe devices by what it has identified about them: a dynamic address with the sub-type
 **device identification** matches on hardware vendor, hardware model, operating system and software
-version. forti-vlan-mac uses such addresses as rules when their name follows the pattern:
+version. forti-pihole uses such addresses as rules when their name follows the pattern:
 
 ```text
-mvlan-rule-<segment>-<label>
+fp-rule-<segment>-<label>
 ```
 
 - `<segment>` names the segment the rule assigns to; it must be one of your configured segments.
-- `<label>` is free text that tells your rules apart, for example `mvlan-rule-iot-cameras`.
+- `<label>` is free text that tells your rules apart, for example `fp-rule-iot-cameras`.
 
 Create them in the FortiGate GUI (**Policy & Objects → Addresses**, a new dynamic address with the
 device identification sub-type). You can also write rules in `config.json` (`rules`, matching on
@@ -60,7 +60,7 @@ applies decides its segment:
 
 ### Protected
 
-A device listed in `protected` is never classified or moved by forti-vlan-mac, whatever else says.
+A device listed in `protected` is never classified or moved by forti-pihole, whatever else says.
 
 ### A fixed assignment
 
@@ -68,9 +68,9 @@ An entry in `assignments` in `config.json` (MAC address to segment).
 
 ### A pin
 
-An explicit decision of yours: `forti-vlan-mac assign MAC SEGMENT`, a confirmed reassociation, or
-moving the device's object to another `mvlan-seg-*` group in the GUI. The next run notices a placement
-it did not write and keeps it. `forti-vlan-mac assign MAC auto` hands the device back to the rules.
+An explicit decision of yours: `forti-pihole assign MAC SEGMENT`, a confirmed reassociation, or
+moving the device's object to another `fp-seg-*` group in the GUI. The next run notices a placement
+it did not write and keeps it. `forti-pihole assign MAC auto` hands the device back to the rules.
 
 ### A rule
 
@@ -110,8 +110,8 @@ put them.
 
 ## Devices that disappear
 
-A device forti-vlan-mac has not seen for `retire_after_days` (default 30) is retired: its managed
-`mvlan-dev-*` object is removed, unless something outside the segment groups still uses it. Until then
+A device forti-pihole has not seen for `retire_after_days` (default 30) is retired: its managed
+`fp-dev-*` object is removed, unless something outside the segment groups still uses it. Until then
 a device that is briefly offline keeps its object and its segment. An empty inventory read (a failed or
 partial read) never retires anything ([Safety](/guides/safety)).
 

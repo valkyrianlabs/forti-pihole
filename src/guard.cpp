@@ -3,7 +3,7 @@
 #include <array>
 #include <format>
 
-namespace fvm {
+namespace fph {
 
     using json = nlohmann::json;
 
@@ -49,7 +49,7 @@ namespace fvm {
             auto where = std::format("operation {}", i);
             auto kind = op.value("op", std::string());
             auto resource = op.value("resource", std::string());
-            if (!is_writable(resource)) throw GuardViolation(std::format("{}: {} is not a resource forti-vlan-mac may write", where, resource));
+            if (!is_writable(resource)) throw GuardViolation(std::format("{}: {} is not a resource forti-pihole may write", where, resource));
             bool group = resource.ends_with("addrgrp");
             if (kind == "create") {
                 const auto& object = op.value("object", json::object());
@@ -104,7 +104,7 @@ namespace fvm {
                 return {};
             }
         }
-        return std::format("{} {} is outside forti-vlan-mac's write allowlist", fortiapi::to_string(method), path);
+        return std::format("{} {} is outside forti-pihole's write allowlist", fortiapi::to_string(method), path);
     }
 
     fortiapi::HttpResponse GuardTransport::perform(const fortiapi::HttpRequest& request) {
@@ -114,4 +114,4 @@ namespace fvm {
         return inner_->perform(request);
     }
 
-}  // namespace fvm
+}  // namespace fph

@@ -6,8 +6,8 @@
 #include <classify.hpp>
 #include <reassociate.hpp>
 
-using namespace fvm;
-using namespace fvm::test;
+using namespace fph;
+using namespace fph::test;
 
 namespace {
     constexpr std::int64_t now = 1'800'000'100;
@@ -30,7 +30,7 @@ TEST(Classify, RulesAndDefault) {
     // Nothing matches the phone: it never lands in the privileged segment by inference.
     EXPECT_EQ(c.decision(phone)->segment, "default");
     EXPECT_TRUE(c.decision(plug1)->create_member);
-    EXPECT_TRUE(c.decision(plug1)->member.starts_with("mvlan-dev-hs103-"));
+    EXPECT_TRUE(c.decision(plug1)->member.starts_with("fp-dev-hs103-"));
 }
 
 TEST(Classify, TiesBetweenSegmentsAreAmbiguous) {
@@ -56,10 +56,10 @@ TEST(Classify, HigherPriorityWins) {
 TEST(Classify, NativeRuleObjects) {
     FakeGateway fake;
     populate(fake);
-    fake.addresses["mvlan-rule-tvs-amazon"] = {{"name", "mvlan-rule-tvs-amazon"}, {"type", "dynamic"},
+    fake.addresses["fp-rule-tvs-amazon"] = {{"name", "fp-rule-tvs-amazon"}, {"type", "dynamic"},
                                                {"sub-type", "device-identification"}, {"hw-vendor", "Amazon"}, {"comment", ""}};
     // A native rule naming a privileged segment is ignored with a warning.
-    fake.addresses["mvlan-rule-owner-apple"] = {{"name", "mvlan-rule-owner-apple"}, {"type", "dynamic"},
+    fake.addresses["fp-rule-owner-apple"] = {{"name", "fp-rule-owner-apple"}, {"type", "dynamic"},
                                                  {"sub-type", "device-identification"}, {"hw-vendor", "Apple"}, {"comment", ""}};
     auto j = test_config().to_json();
     j["rules"] = json::array();
@@ -118,11 +118,11 @@ TEST(Classify, GuiMoveBecomesAPin) {
     populate(fake);
     auto config = test_config();
     auto marker_comment = std::string(marker) + ": x";
-    fake.addresses["mvlan-dev-hs103-005301"] = mac_address("mvlan-dev-hs103-005301", plug1, marker_comment);
-    fake.groups["mvlan-seg-iot_untrusted"] = group("mvlan-seg-iot_untrusted", {}, marker_comment);
-    fake.groups["mvlan-seg-tvs"] = group("mvlan-seg-tvs", {"mvlan-dev-hs103-005301"}, marker_comment);
+    fake.addresses["fp-dev-hs103-005301"] = mac_address("fp-dev-hs103-005301", plug1, marker_comment);
+    fake.groups["fp-seg-iot_untrusted"] = group("fp-seg-iot_untrusted", {}, marker_comment);
+    fake.groups["fp-seg-tvs"] = group("fp-seg-tvs", {"fp-dev-hs103-005301"}, marker_comment);
     State state;
-    state.devices[plug1].object = "mvlan-dev-hs103-005301";
+    state.devices[plug1].object = "fp-dev-hs103-005301";
     state.devices[plug1].written_segment = "iot_untrusted";   // where the companion put it
     auto c = run_classify(fake, config, state);
     EXPECT_EQ(c.decision(plug1)->segment, "tvs");
@@ -135,10 +135,10 @@ TEST(Classify, RemovedFromEveryGroupGoesToDefault) {
     FakeGateway fake;
     populate(fake);
     auto marker_comment = std::string(marker) + ": x";
-    fake.addresses["mvlan-dev-hs103-005301"] = mac_address("mvlan-dev-hs103-005301", plug1, marker_comment);
-    fake.groups["mvlan-seg-iot_untrusted"] = group("mvlan-seg-iot_untrusted", {}, marker_comment);
+    fake.addresses["fp-dev-hs103-005301"] = mac_address("fp-dev-hs103-005301", plug1, marker_comment);
+    fake.groups["fp-seg-iot_untrusted"] = group("fp-seg-iot_untrusted", {}, marker_comment);
     State state;
-    state.devices[plug1].object = "mvlan-dev-hs103-005301";
+    state.devices[plug1].object = "fp-dev-hs103-005301";
     state.devices[plug1].written_segment = "iot_untrusted";
     auto c = run_classify(fake, test_config(), state);
     EXPECT_EQ(c.decision(plug1)->segment, "default");
@@ -148,7 +148,7 @@ TEST(Classify, DeletingTheObjectResetsAGuiPin) {
     FakeGateway fake;
     populate(fake);
     State state;
-    state.devices[plug1].object = "mvlan-dev-hs103-005301";   // gone from the device
+    state.devices[plug1].object = "fp-dev-hs103-005301";   // gone from the device
     state.devices[plug1].written_segment = "tvs";
     state.pins[plug1] = {"tvs", "gui", now};
     auto c = run_classify(fake, test_config(), state);
@@ -161,8 +161,8 @@ TEST(Classify, OverlapsAreReportedWithTheWinner) {
     populate(fake);
     auto marker_comment = std::string(marker) + ": x";
     fake.addresses["Stick"] = mac_address("Stick", stick);
-    fake.groups["mvlan-seg-tvs"] = group("mvlan-seg-tvs", {"Stick"}, marker_comment);
-    fake.groups["mvlan-seg-iot_untrusted"] = group("mvlan-seg-iot_untrusted", {"Stick"}, marker_comment);
+    fake.groups["fp-seg-tvs"] = group("fp-seg-tvs", {"Stick"}, marker_comment);
+    fake.groups["fp-seg-iot_untrusted"] = group("fp-seg-iot_untrusted", {"Stick"}, marker_comment);
     auto c = run_classify(fake, test_config());
     ASSERT_EQ(c.overlaps.size(), 1u);
     EXPECT_EQ(c.overlaps[0].mac, stick);
@@ -173,7 +173,7 @@ TEST(Classify, OverlapsAreReportedWithTheWinner) {
 TEST(Classify, ForeignGroupWithOurNameIsNotManaged) {
     FakeGateway fake;
     populate(fake);
-    fake.groups["mvlan-seg-tvs"] = group("mvlan-seg-tvs", {}, "someone else's");
+    fake.groups["fp-seg-tvs"] = group("fp-seg-tvs", {}, "someone else's");
     auto c = run_classify(fake, test_config());
     EXPECT_TRUE(c.unusable_segments.contains("tvs"));
     EXPECT_EQ(c.decision(stick)->segment, "default");
@@ -194,7 +194,7 @@ TEST(Reassociate, DistinctiveHostnameOnly) {
     auto config = test_config();
     State state;
     // The phone used to be 02:00:5e:00:53:44 (offline now), pinned to the privileged segment.
-    state.devices["02:00:5e:00:53:44"] = {"Alexs-Phone", "Alexs-Phone", "Apple", "iPhone", "iOS", "26.6", true, 1, 1, "mvlan-dev-old", "owner"};
+    state.devices["02:00:5e:00:53:44"] = {"Alexs-Phone", "Alexs-Phone", "Apple", "iPhone", "iOS", "26.6", true, 1, 1, "fp-dev-old", "owner"};
     state.pins["02:00:5e:00:53:44"] = {"owner", "assign", 1};
     auto snapshot = collect(fake, config, now);
     auto c = classify(snapshot, config, state, now);
@@ -220,7 +220,7 @@ TEST(Reassociate, GenericNamesAreNotEvidence) {
     populate(fake);
     auto config = test_config();
     State state;
-    state.devices["00:00:5e:00:53:99"] = {"HS103", "HS103", "TP-Link", "Plug", "", "", false, 1, 1, "mvlan-dev-x", "iot_untrusted"};
+    state.devices["00:00:5e:00:53:99"] = {"HS103", "HS103", "TP-Link", "Plug", "", "", false, 1, 1, "fp-dev-x", "iot_untrusted"};
     auto snapshot = collect(fake, config, now);
     auto c = classify(snapshot, config, state, now);
     EXPECT_TRUE(find_candidates(snapshot, state, c, now).empty());

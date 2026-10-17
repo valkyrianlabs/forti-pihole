@@ -8,7 +8,7 @@
 #include <format>
 #include <set>
 
-namespace fvm {
+namespace fph {
 
     using json = nlohmann::json;
 
@@ -174,7 +174,7 @@ namespace fvm {
                     for (auto& [segment, members]: desired) std::erase(members, record.object);
                     out.retired.push_back(mac);
                     out.changes.push_back({"retire", mac, record.label, record.object, {}, record.written_segment,
-                                           "not an object forti-vlan-mac owns: reference removed, object kept"});
+                                           "not an object forti-pihole owns: reference removed, object kept"});
                     continue;
                 }
                 if (referenced_outside(snapshot, config, object->name)) {
@@ -291,4 +291,4 @@ namespace fvm {
         return out;
     }
 
-}  // namespace fvm
+}  // namespace fph

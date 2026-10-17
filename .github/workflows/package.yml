@@ -68,14 +68,14 @@ jobs:
           # shellcheck disable=SC2016  # expanded inside the container
           ./ci/run-ci --image "$UBUNTU_IMAGE" --root bash -euo pipefail -c '
             apt-get update
-            apt-get install -y --no-install-recommends ./release/forti-vlan-mac_*_amd64.deb
+            apt-get install -y --no-install-recommends ./release/forti-pihole_*_amd64.deb
             pinned="$(sed -n "s/^revision *= *//p" subprojects/forti-cli.wrap | cut -c1-7)"
-            /usr/bin/forti-vlan-mac --version | grep -F "(engine forti-cli $pinned, forti-api "
-            ci/smoke-test.sh /usr/bin/forti-vlan-mac
+            /usr/bin/forti-pihole --version | grep -F "(engine forti-cli $pinned, forti-api "
+            ci/smoke-test.sh /usr/bin/forti-pihole
             # The user units ship, and installing the package never enables them.
-            test -f /usr/lib/systemd/user/forti-vlan-mac.service
-            test -f /usr/lib/systemd/user/forti-vlan-mac.timer
-            test ! -e /etc/systemd/user/timers.target.wants/forti-vlan-mac.timer
+            test -f /usr/lib/systemd/user/forti-pihole.service
+            test -f /usr/lib/systemd/user/forti-pihole.timer
+            test ! -e /etc/systemd/user/timers.target.wants/forti-pihole.timer
           '
 
   homebrew:

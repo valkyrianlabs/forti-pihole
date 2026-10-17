@@ -4,8 +4,8 @@
 // the DNS server. Plus a temporary forti home for the CLI tests.
 //
 
-#ifndef FORTI_VLAN_MAC_TESTS_FIXTURE_HPP
-#define FORTI_VLAN_MAC_TESTS_FIXTURE_HPP
+#ifndef FORTI_PIHOLE_TESTS_FIXTURE_HPP
+#define FORTI_PIHOLE_TESTS_FIXTURE_HPP
 
 #include "fake_gateway.hpp"
 
@@ -20,7 +20,7 @@
 
 #include <stdlib.h>
 
-namespace fvm::test {
+namespace fph::test {
 
     namespace fs = std::filesystem;
 
@@ -79,7 +79,7 @@ namespace fvm::test {
     struct TempHome {
         fs::path path;
         TempHome() {
-            std::string pattern = (fs::temp_directory_path() / "forti-vlan-mac-test-XXXXXX").string();
+            std::string pattern = (fs::temp_directory_path() / "forti-pihole-test-XXXXXX").string();
             if (!::mkdtemp(pattern.data())) throw std::runtime_error("mkdtemp failed");
             path = pattern;
         }
@@ -111,14 +111,14 @@ namespace fvm::test {
 
         Cli() {
             populate(fake);
-            write_private(home.path / "vlan-mac" / "config.json", test_config().to_json().dump(2));
+            write_private(home.path / "pihole" / "config.json", test_config().to_json().dump(2));
         }
 
         int operator()(std::vector<std::string> args) {
             out.str({});
             err.str({});
             Environment env;
-            env.home = {home.path / "vlan-mac"};
+            env.home = {home.path / "pihole"};
             env.gateway = [this](const Config&) { return std::make_unique<Forwarder>(fake); };
             env.clock = [this] { return now; };
             env.out = &out;
@@ -127,6 +127,6 @@ namespace fvm::test {
         }
     };
 
-}  // namespace fvm::test
+}  // namespace fph::test
 
-#endif  // FORTI_VLAN_MAC_TESTS_FIXTURE_HPP
+#endif  // FORTI_PIHOLE_TESTS_FIXTURE_HPP

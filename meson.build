@@ -1,4 +1,4 @@
-project('forti-vlan-mac', 'cpp',
+project('forti-pihole', 'cpp',
         version : files('VERSION'),
         meson_version : '>=1.3.0',
         license : 'MIT',
@@ -22,7 +22,7 @@ add_global_arguments(cxx.get_supported_arguments('-fvisibility=hidden', '-fvisib
 forti_cli = subproject('forti-cli', default_options : ['subproject_cli=false'])
 forti_engine = dependency('forti-engine')
 
-# What `forti-vlan-mac --version` reports about the engine it was built from (src/meson.build).
+# What `forti-pihole --version` reports about the engine it was built from (src/meson.build).
 # Package builds (Debian, Homebrew) use forti-cli at exactly the wrap's pinned revision, from an
 # unpacked archive without Git metadata, so the wrap's revision is the answer there. A Git checkout in
 # subprojects/forti-cli (the wrap's own clone, or a co-development symlink) reports its actual HEAD,
@@ -59,17 +59,17 @@ subdir('tests')
 
 # The periodic run: a systemd *user* timer, so the program runs as the operator who owns ~/.forti and
 # never as root. Installed only, never enabled: each operator opts in with
-# `systemctl --user enable --now forti-vlan-mac.timer` (debian/rules keeps debhelper from enabling it).
-# The unit's ExecStart names /usr/bin/forti-vlan-mac (the package path); a source install under
-# another prefix needs `systemctl --user edit forti-vlan-mac.service`. macOS has no systemd, so
+# `systemctl --user enable --now forti-pihole.timer` (debian/rules keeps debhelper from enabling it).
+# The unit's ExecStart names /usr/bin/forti-pihole (the package path); a source install under
+# another prefix needs `systemctl --user edit forti-pihole.service`. macOS has no systemd, so
 # nothing is installed there.
 if host_machine.system() == 'linux'
-    install_data('packaging/systemd/forti-vlan-mac.service', 'packaging/systemd/forti-vlan-mac.timer',
+    install_data('packaging/systemd/forti-pihole.service', 'packaging/systemd/forti-pihole.timer',
                  install_dir : get_option('prefix') / 'lib' / 'systemd' / 'user')
 endif
 
-# A starting point for $FORTI_HOME/vlan-mac/config.json; never read from here.
+# A starting point for $FORTI_HOME/pihole/config.json; never read from here.
 install_data('packaging/config.example.json',
-             install_dir : get_option('datadir') / 'forti-vlan-mac')
+             install_dir : get_option('datadir') / 'forti-pihole')
 
 summary({'engine': 'forti-cli ' + engine_revision, 'forti-api': forti_api_version}, section : 'Built from')

@@ -1,4 +1,4 @@
-# forti-vlan-mac
+# forti-pihole
 
 A FortiGate companion that keeps your device inventory sorted into **logical segments**, using
 FortiOS's own objects. It reads the FortiGate's device inventory and DHCP data through the FortiOS
@@ -6,12 +6,12 @@ REST API, classifies each device by MAC address with rules you write, and keeps 
 
 | Object | Name | Written by |
 |---|---|---|
-| MAC address object per device | `mvlan-dev-*` | forti-vlan-mac |
-| Address group per segment | `mvlan-seg-<segment>` | forti-vlan-mac |
-| Dynamic device-identification address (a rule) | `mvlan-rule-<segment>-<label>` | you, in the FortiGate GUI; forti-vlan-mac only reads it |
+| MAC address object per device | `fp-dev-*` | forti-pihole |
+| Address group per segment | `fp-seg-<segment>` | forti-pihole |
+| Dynamic device-identification address (a rule) | `fp-rule-<segment>-<label>` | you, in the FortiGate GUI; forti-pihole only reads it |
 
-Your firewall policies reference the `mvlan-seg-*` groups. Move a device to another segment in the GUI,
-or with `forti-vlan-mac assign`, and the next run keeps it there.
+Your firewall policies reference the `fp-seg-*` groups. Move a device to another segment in the GUI,
+or with `forti-pihole assign`, and the next run keeps it there.
 
 It is **never in the traffic path**: a command-line program that a systemd user timer runs every 15
 minutes. There is no daemon and no listener, and nothing on the network depends on it running. It links
@@ -40,7 +40,7 @@ sudo install -d -m 0755 /etc/apt/keyrings
 curl -fsSL https://apt.valkyrianlabs.com/pubkey.gpg | sudo tee /etc/apt/keyrings/valkyrianlabs.gpg > /dev/null
 echo "deb [signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" \
   | sudo tee /etc/apt/sources.list.d/valkyrianlabs.list
-sudo apt update && sudo apt install forti-vlan-mac
+sudo apt update && sudo apt install forti-pihole
 ```
 
 The package recommends `forti-cli` (for `forti configure`) and `valkyrianlabs-archive-keyring`, which
@@ -49,32 +49,32 @@ keeps the repository key current through upgrades.
 **macOS (Homebrew)**:
 
 ```sh
-brew install valkyrianlabs/tap/forti-cli valkyrianlabs/tap/forti-vlan-mac
+brew install valkyrianlabs/tap/forti-cli valkyrianlabs/tap/forti-pihole
 ```
 
-macOS has no systemd: run `forti-vlan-mac apply` yourself, or from your own scheduler.
+macOS has no systemd: run `forti-pihole apply` yourself, or from your own scheduler.
 
 **From source**: see [Building](#building).
 
-`forti-vlan-mac --version` names what it was built from, e.g.
-`forti-vlan-mac 0.1.0 (engine forti-cli 468f9e1, forti-api 1.1.1)`.
+`forti-pihole --version` names what it was built from, e.g.
+`forti-pihole 0.1.0 (engine forti-cli 468f9e1, forti-api 1.1.1)`.
 
 ## Quick start
 
 1. Create a device profile with the forti CLI: `forti configure` (host, API token, mode). The profile's
    API account needs read access to the device inventory and DHCP, and write access to firewall
    addresses and address groups.
-2. Write a starting configuration with `forti-vlan-mac init` (`~/.forti/vlan-mac/config.json`; never
+2. Write a starting configuration with `forti-pihole init` (`~/.forti/pihole/config.json`; never
    overwrites one) and describe your segments and rules in it.
 3. See what it would do. Neither command writes anything:
    ```sh
-   forti-vlan-mac report      # the inventory, classified into segments
-   forti-vlan-mac plan        # the changes the next apply would make
+   forti-pihole report      # the inventory, classified into segments
+   forti-pihole plan        # the changes the next apply would make
    ```
 4. Apply once by hand, then let the timer keep it current:
    ```sh
-   forti-vlan-mac apply                    # at most 50 devices per run (--max-changes N)
-   systemctl --user enable --now forti-vlan-mac.timer
+   forti-pihole apply                    # at most 50 devices per run (--max-changes N)
+   systemctl --user enable --now forti-pihole.timer
    loginctl enable-linger "$USER"   # optional: run while you are logged out
    ```
 
@@ -82,20 +82,20 @@ macOS has no systemd: run `forti-vlan-mac apply` yourself, or from your own sche
 
 | Path | What |
 |---|---|
-| `$FORTI_HOME/vlan-mac/config.json` | Your configuration (segments, rules, protected devices) |
-| `$FORTI_HOME/vlan-mac/state.json` | What forti-vlan-mac has learned about each device between runs |
-| `$FORTI_HOME/vlan-mac/history.jsonl` | One line per apply (`forti-vlan-mac history`) |
+| `$FORTI_HOME/pihole/config.json` | Your configuration (segments, rules, protected devices) |
+| `$FORTI_HOME/pihole/state.json` | What forti-pihole has learned about each device between runs |
+| `$FORTI_HOME/pihole/history.jsonl` | One line per apply (`forti-pihole history`) |
 
 `FORTI_HOME` defaults to `~/.forti`, the forti home that forti and forti-mcp also use. Device profiles
 and credentials stay where `forti configure` put them.
 
 ## Safety model
 
-- **Fail-static.** Nothing on the network depends on forti-vlan-mac. If it stops, the FortiGate keeps
+- **Fail-static.** Nothing on the network depends on forti-pihole. If it stops, the FortiGate keeps
   the objects it has; a failed read never deletes anything.
 - **Write allowlist.** It writes only `firewall/address` and `firewall/addrgrp` objects whose name
-  starts with its prefix (default `mvlan-`) and that carry the marker comment
-  `managed by forti-vlan-mac`. Every other write is refused in code before it is sent. It never touches
+  starts with its prefix (default `fp-`) and that carry the marker comment
+  `managed by forti-pihole`. Every other write is refused in code before it is sent. It never touches
   interfaces, policies, routing, DHCP, users, admins, switches or system settings.
 - **Your objects are yours.** Objects without the marker are never changed or deleted, even when their
   name has the prefix.
@@ -116,7 +116,7 @@ and credentials stay where `forti configure` put them.
 meson setup build -Dtests=enabled
 meson compile -C build -j "$(ci/build-jobs)"
 meson test -C build
-sudo meson install -C build --skip-subprojects    # /usr/local/bin/forti-vlan-mac
+sudo meson install -C build --skip-subprojects    # /usr/local/bin/forti-pihole
 ```
 
 Needs a C++23 compiler (GCC 13+ or a recent clang), Meson ≥ 1.3, libcurl and (for tests) GoogleTest.
@@ -124,8 +124,8 @@ The engine comes from forti-cli's source as the Meson subproject `subprojects/fo
 commit by `subprojects/forti-cli.wrap` and fetched at configure time. forti-api (header-only) comes from
 a system install (`libforti-api-dev`, the `forti-api` formula) when present, else from its wrap. On
 Linux, `meson install` also installs the user units into `<prefix>/lib/systemd/user`; their
-`ExecStart` names `/usr/bin/forti-vlan-mac`, so a `/usr/local` install needs
-`systemctl --user edit forti-vlan-mac.service`. Tests never contact a device.
+`ExecStart` names `/usr/bin/forti-pihole`, so a `/usr/local` install needs
+`systemctl --user edit forti-pihole.service`. Tests never contact a device.
 
 ## License
 

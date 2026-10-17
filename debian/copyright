@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: forti-vlan-mac
-Source: https://github.com/valkyrianlabs/forti-vlan-mac
+Upstream-Name: forti-pihole
+Source: https://github.com/valkyrianlabs/forti-pihole
 
 Files: *
 Copyright: 2026 Valkyrian Labs
@@ -10,7 +10,7 @@ Files: subprojects/forti-cli/*
 Copyright: 2026 Valkyrian Labs
 License: MIT
 Comment: forti-cli's command engine (https://github.com/valkyrianlabs/forti-cli), compiled
- statically into forti-vlan-mac from the revision subprojects/forti-cli.wrap pins.
+ statically into forti-pihole from the revision subprojects/forti-cli.wrap pins.
 
 License: MIT
  Permission is hereby granted, free of charge, to any person obtaining a copy

@@ -9,7 +9,7 @@
 #include <set>
 #include <sstream>
 
-namespace fvm {
+namespace fph {
 
     using json = nlohmann::json;
 
@@ -235,7 +235,7 @@ namespace fvm {
     Config load_config(const std::filesystem::path& path) {
         std::ifstream in(path);
         if (!in)
-            throw ConfigError(std::format("no configuration at {} (run `forti-vlan-mac init` to write a starting one)",
+            throw ConfigError(std::format("no configuration at {} (run `forti-pihole init` to write a starting one)",
                                           path.string()));
         std::stringstream buffer;
         buffer << in.rdbuf();
@@ -248,9 +248,9 @@ namespace fvm {
         // The segments mirror the operator's planning table; subnets are documentation until subnet
         // assignment is proven. Rules only target non-privileged segments (enforced by from_json).
         return json::parse(R"json({
-  "$comment": "forti-vlan-mac configuration. Segments are FortiGate address groups <prefix>seg-<name>; edit membership in the FortiGate GUI.",
+  "$comment": "forti-pihole configuration. Segments are FortiGate address groups <prefix>seg-<name>; edit membership in the FortiGate GUI.",
   "profile": "",
-  "prefix": "mvlan-",
+  "prefix": "fp-",
   "interfaces": ["internal"],
   "default_segment": "default",
   "segments": [
@@ -278,4 +278,4 @@ namespace fvm {
 })json");
     }
 
-}  // namespace fvm
+}  // namespace fph

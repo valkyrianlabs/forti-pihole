@@ -18,31 +18,31 @@ vlr prepare >/dev/null
 vlr source-archive
 formula="$(vlr homebrew formula --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["path"])')"
 version="$(vlr version show)"
-archive="$PWD/release/forti-vlan-mac-${version}.tar.gz"
+archive="$PWD/release/forti-pihole-${version}.tar.gz"
 
 export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1
 brew tap valkyrianlabs/tap
-# Recent Homebrew refuses formulae from third-party taps until they are trusted; forti-vlan-mac depends on
+# Recent Homebrew refuses formulae from third-party taps until they are trusted; forti-pihole depends on
 # valkyrianlabs/tap/forti-api, and the throwaway tap below holds the formula under test.
 trust() { if brew commands --quiet | grep -qx trust; then brew trust "$1"; fi; }
 trust valkyrianlabs/tap
 
-tap="forti-vlan-mac-ci/local"
+tap="forti-pihole-ci/local"
 brew untap "$tap" >/dev/null 2>&1 || true
 brew tap-new --no-git "$tap"
 trust "$tap"
-tap_formula="$(brew --repository "$tap")/Formula/forti-vlan-mac.rb"
-trap 'brew uninstall --formula "$tap/forti-vlan-mac" >/dev/null 2>&1 || true; brew untap "$tap" >/dev/null 2>&1 || true' EXIT
+tap_formula="$(brew --repository "$tap")/Formula/forti-pihole.rb"
+trap 'brew uninstall --formula "$tap/forti-pihole" >/dev/null 2>&1 || true; brew untap "$tap" >/dev/null 2>&1 || true' EXIT
 
 # Style-check the exact formula that will be published, as a tap formula.
 cp "$formula" "$tap_formula"
-brew style "$tap/forti-vlan-mac"
+brew style "$tap/forti-pihole"
 
 # Then install it from the locally built archive as a bottle build and run its test block.
 sed -E "s#^  url \".*\"#  url \"file://${archive}\"#" "$formula" > "$tap_formula"
-brew install --build-bottle "$tap/forti-vlan-mac"
-brew test "$tap/forti-vlan-mac"
-installed="$(brew --prefix)/bin/forti-vlan-mac"
+brew install --build-bottle "$tap/forti-pihole"
+brew test "$tap/forti-pihole"
+installed="$(brew --prefix)/bin/forti-pihole"
 # The installed binary reports the engine revision the wrap pins.
 pinned="$(sed -n 's/^revision *= *//p' subprojects/forti-cli.wrap | cut -c1-7)"
 "$installed" --version | grep -F "(engine forti-cli $pinned, forti-api "
@@ -53,7 +53,7 @@ ci/smoke-test.sh "$installed"
 mkdir -p bottle
 (
   cd bottle
-  brew bottle --json --root-url "https://github.com/valkyrianlabs/forti-vlan-mac/releases/download/v${version}" "$tap/forti-vlan-mac"
+  brew bottle --json --root-url "https://github.com/valkyrianlabs/forti-pihole/releases/download/v${version}" "$tap/forti-pihole"
   python3 - <<'PY'
 import json, pathlib
 for path in pathlib.Path(".").glob("*.bottle.json"):

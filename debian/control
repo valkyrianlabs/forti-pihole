@@ -1,4 +1,4 @@
-Source: forti-vlan-mac
+Source: forti-pihole
 Section: admin
 Priority: optional
 Maintainer: Cooper Larson <cooper@valkyrianlabs.com>
@@ -13,9 +13,9 @@ Build-Depends:
  pkgconf,
 Standards-Version: 4.7.0
 Rules-Requires-Root: no
-Homepage: https://github.com/valkyrianlabs/forti-vlan-mac
+Homepage: https://github.com/valkyrianlabs/forti-pihole
 
-Package: forti-vlan-mac
+Package: forti-pihole
 Architecture: any
 Depends:
  ${misc:Depends},
@@ -24,7 +24,7 @@ Recommends:
  forti-cli,
  valkyrianlabs-archive-keyring,
 Description: FortiGate device inventory segments kept in native FortiOS objects
- forti-vlan-mac reads a FortiGate's device inventory and DHCP data through
+ forti-pihole reads a FortiGate's device inventory and DHCP data through
  the FortiOS REST API, classifies devices by MAC address with operator rules,
  and keeps FortiOS-native objects in step: a MAC address object per device
  and an address group per logical segment, which firewall policies can then

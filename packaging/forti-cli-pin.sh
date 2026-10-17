@@ -17,7 +17,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 wrap="$root/subprojects/forti-cli.wrap"
-formula="$root/packaging/homebrew/forti-vlan-mac.rb"
+formula="$root/packaging/homebrew/forti-pihole.rb"
 dir="$root/subprojects/forti-cli"
 
 die() {

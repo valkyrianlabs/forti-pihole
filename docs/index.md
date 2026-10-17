@@ -1,5 +1,5 @@
 ---
-title: forti-vlan-mac
+title: forti-pihole
 description: Keep a FortiGate's device inventory classified into logical segments, in native FortiOS address objects and groups.
 order: 0
 status: published
@@ -7,9 +7,9 @@ tags:
   - overview
 ---
 
-# forti-vlan-mac
+# forti-pihole
 
-forti-vlan-mac is a FortiGate companion that keeps your device inventory sorted into **logical
+forti-pihole is a FortiGate companion that keeps your device inventory sorted into **logical
 segments**, using FortiOS's own objects. It reads the FortiGate's device inventory and DHCP data
 through the FortiOS REST API, classifies each device by MAC address with rules you write, and keeps a
 MAC address object per device in the address group of its segment. Your firewall policies reference
@@ -19,28 +19,28 @@ those groups.
 ::badge[Release]{
   type="github"
   target="release"
-  repo="valkyrianlabs/forti-vlan-mac"
-  href="https://github.com/valkyrianlabs/forti-vlan-mac/releases"
+  repo="valkyrianlabs/forti-pihole"
+  href="https://github.com/valkyrianlabs/forti-pihole/releases"
 }
 ::badge[CI]{
   type="github"
   target="workflow"
-  repo="valkyrianlabs/forti-vlan-mac"
+  repo="valkyrianlabs/forti-pihole"
   workflow="ci.yml"
-  href="https://github.com/valkyrianlabs/forti-vlan-mac/actions/workflows/ci.yml"
+  href="https://github.com/valkyrianlabs/forti-pihole/actions/workflows/ci.yml"
 }
 ::badge[License]{
   type="github"
   target="license"
-  repo="valkyrianlabs/forti-vlan-mac"
+  repo="valkyrianlabs/forti-pihole"
 }
 :::
 
 ```bash
 forti configure                                   # a device profile in ~/.forti
-forti-vlan-mac report                             # the inventory, classified; writes nothing
-forti-vlan-mac plan                               # what apply would change; writes nothing
-systemctl --user enable --now forti-vlan-mac.timer   # keep it current every 15 minutes
+forti-pihole report                             # the inventory, classified; writes nothing
+forti-pihole plan                               # what apply would change; writes nothing
+systemctl --user enable --now forti-pihole.timer   # keep it current every 15 minutes
 ```
 
 It is **never in the traffic path**. It is a command-line program that a systemd user timer runs
@@ -49,19 +49,19 @@ periodically; there is no daemon and no listener, and nothing on the network dep
 :::buttons{align="left" stack="mobile" gap="md"}
 ::button[Install]{href="/getting-started/install" variant="primary"}
 ::button[Quick start]{href="/getting-started/quick-start" variant="secondary"}
-::button[GitHub]{href="https://github.com/valkyrianlabs/forti-vlan-mac" variant="outline" newTab=true}
+::button[GitHub]{href="https://github.com/valkyrianlabs/forti-pihole" variant="outline" newTab=true}
 :::
 
 ## What it keeps on the FortiGate
 
 | Object | Name | Who writes it |
 |---|---|---|
-| MAC address object, one per device | `mvlan-dev-*` | forti-vlan-mac |
-| Address group, one per segment | `mvlan-seg-<segment>` | forti-vlan-mac |
-| Dynamic device-identification address, read as a rule | `mvlan-rule-<segment>-<label>` | You, in the FortiGate GUI |
+| MAC address object, one per device | `fp-dev-*` | forti-pihole |
+| Address group, one per segment | `fp-seg-<segment>` | forti-pihole |
+| Dynamic device-identification address, read as a rule | `fp-rule-<segment>-<label>` | You, in the FortiGate GUI |
 
-`mvlan-` is the default prefix. Every object forti-vlan-mac writes carries the comment
-`managed by forti-vlan-mac`, and it never changes an object without that marker.
+`fp-` is the default prefix. Every object forti-pihole writes carries the comment
+`managed by forti-pihole`, and it never changes an object without that marker.
 [Segments and rules](/guides/segments-and-rules) explains how a device ends up in a segment.
 
 ## What you get
@@ -77,7 +77,7 @@ other group. Nothing proprietary sits between your devices and the firewall.
 :::
 
 :::card[You stay in charge]{eyebrow="Precedence"}
-Protected devices first, then your own assignments (a move in the GUI, or `forti-vlan-mac assign`),
+Protected devices first, then your own assignments (a move in the GUI, or `forti-pihole assign`),
 then rules, then the default segment. Privileged segments are never inferred from a rule.
 :::
 
@@ -98,7 +98,7 @@ other write is refused in code before it is sent.
 
 :::card[Randomized MACs]{eyebrow="Devices"}
 Phones and laptops that come back with a new private MAC are offered as candidates; you link them with
-`forti-vlan-mac confirm`.
+`forti-pihole confirm`.
 :::
 
 :::
@@ -113,15 +113,15 @@ Phones and laptops that come back with a new private MAC are offered as candidat
 - **No layer-2 isolation.** Devices in different segments on the same VLAN can still reach each other
   without passing through the FortiGate.
 - **No DHCP changes.** Giving segments their own DHCP ranges is not yet available: it is under
-  evaluation, and forti-vlan-mac never writes DHCP settings today.
+  evaluation, and forti-pihole never writes DHCP settings today.
 :::
 
 ## How it relates to forti-cli
 
-forti-vlan-mac compiles in the command engine of [forti-cli](https://github.com/valkyrianlabs/forti-cli),
+forti-pihole compiles in the command engine of [forti-cli](https://github.com/valkyrianlabs/forti-cli),
 the `forti` command-line tool, which is built on the
 [forti-api](https://github.com/valkyrianlabs/forti-api) SDK. The engine owns device profiles,
-credentials, validation, plans, modes and the audit log; forti-vlan-mac decides which objects should
+credentials, validation, plans, modes and the audit log; forti-pihole decides which objects should
 exist and hands the changes to the engine. It never runs the `forti` executable, but you use `forti
 configure` to create the device profile it connects with, and both use the same forti home
 (`~/.forti`).
@@ -137,7 +137,7 @@ configure` to create the device profile it connects with, and both use the same 
   href="/getting-started/install"
   eyebrow="Getting started"
 }
-Install forti-vlan-mac from the APT repository or Homebrew, or build it from source.
+Install forti-pihole from the APT repository or Homebrew, or build it from source.
 :::
 
 :::card[Quick start]{

@@ -12,7 +12,7 @@ if gtest_dep.found()
                             'unit/test_reconcile.cpp',
                             'unit/test_cli.cpp',
                             include_directories : include_directories('support'),
-                            dependencies : [fvm_core_dep, gtest_dep],
+                            dependencies : [fph_core_dep, gtest_dep],
                             implicit_include_directories : false)
     test('unit', unit_tests,
          env : asan_options != '' ? {'ASAN_OPTIONS' : asan_options} : {},

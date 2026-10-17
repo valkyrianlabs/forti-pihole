@@ -7,8 +7,8 @@
 #include <guard.hpp>
 #include <mac.hpp>
 
-using namespace fvm;
-using namespace fvm::test;
+using namespace fph;
+using namespace fph::test;
 
 TEST(Mac, NormalizesSpellings) {
     EXPECT_EQ(normalize_mac("AA-BB-cc:DD:ee:FF"), "aa:bb:cc:dd:ee:ff");
@@ -69,19 +69,19 @@ TEST(Guard, OperationsOutsideTheAllowlistAreRefused) {
                                     {"object", {{"name", "Thermostat"}, {"comment", std::string(marker)}}}}});
     EXPECT_THROW(check_operations(unprefixed, snapshot, config), GuardViolation);
 
-    auto unmarked = json::array({{{"op", "create"}, {"resource", "firewall/address"}, {"object", {{"name", "mvlan-dev-x"}}}}});
+    auto unmarked = json::array({{{"op", "create"}, {"resource", "firewall/address"}, {"object", {{"name", "fp-dev-x"}}}}});
     EXPECT_THROW(check_operations(unmarked, snapshot, config), GuardViolation);
 
     // An administrator's object that happens to carry the prefix: still not ours.
     Address theirs;
-    theirs.name = "mvlan-rule-iot_untrusted-kasa";
+    theirs.name = "fp-rule-iot_untrusted-kasa";
     theirs.type = "dynamic";
     snapshot.addresses[theirs.name] = theirs;
     auto delete_theirs = json::array({{{"op", "delete"}, {"resource", "firewall/address"}, {"key", theirs.name}}});
     EXPECT_THROW(check_operations(delete_theirs, snapshot, config), GuardViolation);
 
     Address ours;
-    ours.name = "mvlan-dev-plug-005301";
+    ours.name = "fp-dev-plug-005301";
     ours.comment = std::string(marker) + ": plug";
     snapshot.addresses[ours.name] = ours;
     auto strip_marker = json::array({{{"op", "update"}, {"resource", "firewall/address"}, {"key", ours.name}, {"set", {{"comment", "mine now"}}}}});
@@ -93,20 +93,20 @@ TEST(Guard, OperationsOutsideTheAllowlistAreRefused) {
 TEST(Guard, TransportRefusesBeforeSending) {
     using fortiapi::Method;
     const std::string base = "https://fortigate.test:8443/api/v2/";
-    EXPECT_EQ(refuse_write(Method::Get, base + "cmdb/system/interface", "", "mvlan-"), "");
-    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/system/interface/internal", "{}", "mvlan-"), "");
-    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/firewall/policy/2", "{}", "mvlan-"), "");
-    EXPECT_NE(refuse_write(Method::Post, base + "cmdb/system.dhcp/server/1/reserved-address", "{}", "mvlan-"), "");
-    EXPECT_NE(refuse_write(Method::Post, base + "monitor/system/os/reboot", "{}", "mvlan-"), "");
-    EXPECT_EQ(refuse_write(Method::Post, base + "cmdb/firewall/address?vdom=root", R"({"name":"mvlan-dev-a"})", "mvlan-"), "");
-    EXPECT_NE(refuse_write(Method::Post, base + "cmdb/firewall/address", R"({"name":"Thermostat"})", "mvlan-"), "");
-    EXPECT_EQ(refuse_write(Method::Put, base + "cmdb/firewall/addrgrp/mvlan-seg-tvs?vdom=root", "{}", "mvlan-"), "");
-    EXPECT_NE(refuse_write(Method::Delete, base + "cmdb/firewall/addrgrp/TVs", "", "mvlan-"), "");
-    EXPECT_NE(refuse_write(Method::Delete, base + "cmdb/firewall/address", "", "mvlan-"), "");
+    EXPECT_EQ(refuse_write(Method::Get, base + "cmdb/system/interface", "", "fp-"), "");
+    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/system/interface/internal", "{}", "fp-"), "");
+    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/firewall/policy/2", "{}", "fp-"), "");
+    EXPECT_NE(refuse_write(Method::Post, base + "cmdb/system.dhcp/server/1/reserved-address", "{}", "fp-"), "");
+    EXPECT_NE(refuse_write(Method::Post, base + "monitor/system/os/reboot", "{}", "fp-"), "");
+    EXPECT_EQ(refuse_write(Method::Post, base + "cmdb/firewall/address?vdom=root", R"({"name":"fp-dev-a"})", "fp-"), "");
+    EXPECT_NE(refuse_write(Method::Post, base + "cmdb/firewall/address", R"({"name":"Thermostat"})", "fp-"), "");
+    EXPECT_EQ(refuse_write(Method::Put, base + "cmdb/firewall/addrgrp/fp-seg-tvs?vdom=root", "{}", "fp-"), "");
+    EXPECT_NE(refuse_write(Method::Delete, base + "cmdb/firewall/addrgrp/TVs", "", "fp-"), "");
+    EXPECT_NE(refuse_write(Method::Delete, base + "cmdb/firewall/address", "", "fp-"), "");
     // Encoded names are decoded before the prefix check; nested child paths are refused.
-    EXPECT_EQ(refuse_write(Method::Delete, base + "cmdb/firewall/address/mvlan-dev-a%20b", "", "mvlan-"), "");
+    EXPECT_EQ(refuse_write(Method::Delete, base + "cmdb/firewall/address/fp-dev-a%20b", "", "fp-"), "");
     EXPECT_NE(refuse_write(Method::Delete, base + "cmdb/firewall/address/%6Dvlan%2Fx", "", "nope-"), "");
-    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/firewall/addrgrp/mvlan-seg-tvs/member", "{}", "mvlan-"), "");
+    EXPECT_NE(refuse_write(Method::Put, base + "cmdb/firewall/addrgrp/fp-seg-tvs/member", "{}", "fp-"), "");
 }
 
 namespace {
@@ -122,7 +122,7 @@ namespace {
 
 TEST(Guard, RefusedRequestsNeverReachTheInnerTransport) {
     auto inner = std::make_shared<RecordingTransport>();
-    GuardTransport guard(inner, "mvlan-");
+    GuardTransport guard(inner, "fp-");
     fortiapi::HttpRequest request;
     request.method = fortiapi::Method::Put;
     request.url = "https://fortigate.test:8443/api/v2/cmdb/system/interface/internal";

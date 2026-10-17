@@ -1,6 +1,6 @@
 # CI container
 
-forti-vlan-mac's Linux CI and release jobs follow forti-mcp's, forti-cli's and forti-api's conventions:
+forti-pihole's Linux CI and release jobs follow forti-mcp's, forti-cli's and forti-api's conventions:
 every step runs inside a disposable, rootless Podman container on the self-hosted VPS runner
 (GitHub-hosted `ubuntu-latest` for pull requests from forks). The runner needs no host sudo, host
 packages or Docker. The shared conventions are described in [payload-markdown's `ci/README.md`](https://github.com/valkyrianlabs/payload-markdown/blob/main/ci/README.md).
@@ -13,7 +13,7 @@ packages or Docker. The shared conventions are described in [payload-markdown's 
   GoogleTest, shellcheck, dpkg-dev, debhelper, gh, vl-release and pmdocs; the same image as forti-mcp's.
   libforti-api-dev is installed at run time by the package jobs only (development builds use the
   pinned wraps).
-- `ci/smoke-test.sh`: an offline check of a built or installed `forti-vlan-mac` (`--version` with the
+- `ci/smoke-test.sh`: an offline check of a built or installed `forti-pihole` (`--version` with the
   engine revision, `--help` listing every subcommand, a bad option exiting 2, nothing written to the
   forti home). It needs only POSIX tools, so it also runs in a stock `ubuntu:24.04` with just the `.deb`
   installed. It never contacts a FortiGate.

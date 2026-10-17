@@ -5,7 +5,7 @@
 
 #include <forti/engine/engine.hpp>
 
-namespace fvm {
+namespace fph {
 
     namespace {
 
@@ -33,7 +33,7 @@ namespace fvm {
 
     std::unique_ptr<Gateway> engine_gateway(const Config& config) {
         forti::engine::Options options;
-        options.actor = "forti-vlan-mac";
+        options.actor = "forti-pihole";
         std::string prefix = config.prefix;
         // The guard sits under the engine, around the SDK's own libcurl transport, so it sees every
         // request the engine makes, including the ones plan and apply make on their own.
@@ -43,4 +43,4 @@ namespace fvm {
         return std::make_unique<EngineGateway>(std::move(options));
     }
 
-}  // namespace fvm
+}  // namespace fph

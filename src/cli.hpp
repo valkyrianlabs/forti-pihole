@@ -7,8 +7,8 @@
 // 8 partial or unknown outcome. The engine's codes map the same way (architecture.md).
 //
 
-#ifndef FORTI_VLAN_MAC_CLI_HPP
-#define FORTI_VLAN_MAC_CLI_HPP
+#ifndef FORTI_PIHOLE_CLI_HPP
+#define FORTI_PIHOLE_CLI_HPP
 
 #include "gateway.hpp"
 #include "state.hpp"
@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-namespace fvm {
+namespace fph {
 
     struct Config;
 
@@ -38,6 +38,6 @@ namespace fvm {
 
     std::string usage_text();
 
-}  // namespace fvm
+}  // namespace fph
 
-#endif  // FORTI_VLAN_MAC_CLI_HPP
+#endif  // FORTI_PIHOLE_CLI_HPP

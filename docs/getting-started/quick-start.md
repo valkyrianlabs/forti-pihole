@@ -9,7 +9,7 @@ tags:
 
 # Quick start
 
-From an installed `forti-vlan-mac` to a FortiGate whose device inventory stays sorted into segments.
+From an installed `forti-pihole` to a FortiGate whose device inventory stays sorted into segments.
 The first four steps write nothing to the device.
 
 :::toc[On this page]{depth="2" theme="compact"}
@@ -17,14 +17,14 @@ The first four steps write nothing to the device.
 
 ## Before you start
 
-- forti-vlan-mac and forti are installed ([Install](/getting-started/install)).
+- forti-pihole and forti are installed ([Install](/getting-started/install)).
 - The FortiGate has seen your devices: its device inventory (**Dashboard → Assets & Identities**, or
   the device list on older releases) shows them, with device detection enabled on the interfaces you
   care about.
 - You can create a REST API administrator on the FortiGate.
 
 :::callout[Scope the API account]{variant="tip"}
-forti-vlan-mac needs to read the device inventory and DHCP data, and to write firewall addresses and
+forti-pihole needs to read the device inventory and DHCP data, and to write firewall addresses and
 address groups. Give its API administrator an admin profile that allows exactly that, and restrict its
 trusted hosts to the machine that runs the timer. The program refuses every other write itself
 ([Safety](/guides/safety)), but the FortiOS account is the boundary that holds even if a program
@@ -51,7 +51,7 @@ applies at once ([Command line](/reference/cli#apply)). `report` and `plan` work
 Write a starting configuration, then describe your segments and rules in it:
 
 ```bash
-forti-vlan-mac init        # writes ~/.forti/vlan-mac/config.json; never overwrites one
+forti-pihole init        # writes ~/.forti/pihole/config.json; never overwrites one
 ```
 
 ```json
@@ -78,7 +78,7 @@ forti-vlan-mac init        # writes ~/.forti/vlan-mac/config.json; never overwri
 ### Look at the inventory
 
 ```bash
-forti-vlan-mac report
+forti-pihole report
 ```
 
 `report` reads the device inventory and DHCP data and shows each device with its segment and why
@@ -88,7 +88,7 @@ offline devices and the reasons for every decision. It writes nothing.
 ### See the changes
 
 ```bash
-forti-vlan-mac plan
+forti-pihole plan
 ```
 
 `plan` makes a forti engine plan of the changes the next `apply` would make: objects to create,
@@ -98,21 +98,21 @@ plan is what you expect.
 ### Apply once by hand
 
 ```bash
-forti-vlan-mac apply --max-changes 50
+forti-pihole apply --max-changes 50
 ```
 
-The first run creates the `mvlan-seg-*` groups and the `mvlan-dev-*` objects. At most 50 devices change
+The first run creates the `fp-seg-*` groups and the `fp-dev-*` objects. At most 50 devices change
 per run (`--max-changes`, or `max_changes` in the configuration); the rest follow in later runs. With a
 `guarded` profile, approve the plan with `forti approve <plan_id>`; the next `apply` applies it.
 
 ### Turn on the timer
 
 ```bash
-systemctl --user enable --now forti-vlan-mac.timer
+systemctl --user enable --now forti-pihole.timer
 loginctl enable-linger "$USER"     # optional: keep running while you are logged out
 ```
 
-The timer runs `forti-vlan-mac apply --quiet` every 15 minutes, as you, with your forti home. With a
+The timer runs `forti-pihole apply --quiet` every 15 minutes, as you, with your forti home. With a
 `guarded` profile each run that finds changes waits for your approval, and the run after you approve
 applies them.
 
@@ -120,20 +120,20 @@ applies them.
 
 ## Use the segments
 
-Reference the `mvlan-seg-*` groups as sources or destinations in your own firewall policies, for
-example a policy that lets `mvlan-seg-iot` reach the internet but not your LAN. forti-vlan-mac never
+Reference the `fp-seg-*` groups as sources or destinations in your own firewall policies, for
+example a policy that lets `fp-seg-iot` reach the internet but not your LAN. forti-pihole never
 creates or changes policies: what a segment may do is your decision.
 
 ## Keep an eye on it
 
 ```bash
-forti-vlan-mac status                   # the profile's mode, the last apply, a plan waiting for approval
-forti-vlan-mac history                  # the last applies
-journalctl --user -u forti-vlan-mac     # what the timer runs printed
+forti-pihole status                   # the profile's mode, the last apply, a plan waiting for approval
+forti-pihole history                  # the last applies
+journalctl --user -u forti-pihole     # what the timer runs printed
 ```
 
-To move a device, move its `mvlan-dev-*` object to another `mvlan-seg-*` group in the GUI, or run
-`forti-vlan-mac assign MAC SEGMENT`. Both pin the device, which outranks every rule.
+To move a device, move its `fp-dev-*` object to another `fp-seg-*` group in the GUI, or run
+`forti-pihole assign MAC SEGMENT`. Both pin the device, which outranks every rule.
 
 ## Next
 

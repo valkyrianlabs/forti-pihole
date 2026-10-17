@@ -4,7 +4,7 @@
 #include <format>
 #include <map>
 
-namespace fvm {
+namespace fph {
 
     using json = nlohmann::json;
 
@@ -163,7 +163,7 @@ namespace fvm {
             for (const auto& k: *run.candidates) {
                 std::string reasons;
                 for (const auto& r: k.reasons) reasons += (reasons.empty() ? "" : ", ") + r;
-                out += std::format("  {}  {} -> {}  score {}: {}\n      forti-vlan-mac confirm {}   |   forti-vlan-mac confirm --reject {}\n",
+                out += std::format("  {}  {} -> {}  score {}: {}\n      forti-pihole confirm {}   |   forti-pihole confirm --reject {}\n",
                                    k.id, k.old_mac, k.new_mac, k.score, safe(reasons, 200), k.id, k.id);
             }
         }
@@ -193,4 +193,4 @@ namespace fvm {
         return out;
     }
 
-}  // namespace fvm
+}  // namespace fph

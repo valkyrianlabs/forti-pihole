@@ -12,8 +12,8 @@
 // change still shows up; a precise verdict for every policy is not the goal.
 //
 
-#ifndef FORTI_VLAN_MAC_CONNECTIVITY_HPP
-#define FORTI_VLAN_MAC_CONNECTIVITY_HPP
+#ifndef FORTI_PIHOLE_CONNECTIVITY_HPP
+#define FORTI_PIHOLE_CONNECTIVITY_HPP
 
 #include "inventory.hpp"
 
@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-namespace fvm {
+namespace fph {
 
     struct Verdict {
         std::string action = "none";   // accept | deny | none (implicit deny) | n/a (probe does not apply)
@@ -50,6 +50,6 @@ namespace fvm {
     bool portrange_covers(std::string_view range, unsigned port);
     bool service_covers(const Snapshot& snapshot, std::string_view name, std::string_view protocol, unsigned port);
 
-}  // namespace fvm
+}  // namespace fph
 
-#endif  // FORTI_VLAN_MAC_CONNECTIVITY_HPP
+#endif  // FORTI_PIHOLE_CONNECTIVITY_HPP

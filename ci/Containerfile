@@ -1,4 +1,4 @@
-# CI build/test environment for forti-vlan-mac (built and run by ci/run-ci; nothing here touches the
+# CI build/test environment for forti-pihole (built and run by ci/run-ci; nothing here touches the
 # host). Same base and tooling as forti-mcp's, forti-cli's and forti-api's ci/Containerfile.
 #
 # Ubuntu 24.04 (the release target, GCC 13) with the build dependencies (build-essential, meson,

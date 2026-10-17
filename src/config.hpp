@@ -3,14 +3,14 @@
 // which devices are never touched. It holds policy about classification only. Membership itself
 // lives on the FortiGate (address groups), so the GUI stays the source of truth.
 //
-//   $FORTI_HOME/vlan-mac/config.json   (default ~/.forti/vlan-mac/config.json)
+//   $FORTI_HOME/pihole/config.json   (default ~/.forti/pihole/config.json)
 //
 // Segments are listed in priority order: when an operator puts one device in two segment groups,
 // the earlier segment wins (and the overlap is reported).
 //
 
-#ifndef FORTI_VLAN_MAC_CONFIG_HPP
-#define FORTI_VLAN_MAC_CONFIG_HPP
+#ifndef FORTI_PIHOLE_CONFIG_HPP
+#define FORTI_PIHOLE_CONFIG_HPP
 
 #include <nlohmann/json.hpp>
 
@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-namespace fvm {
+namespace fph {
 
     class ConfigError : public std::runtime_error {
     public:
@@ -63,7 +63,7 @@ namespace fvm {
     struct Config {
         std::string profile;                          // forti profile; empty: the default profile
         std::string vdom;                             // empty: the profile's
-        std::string prefix = "mvlan-";                // every managed object's name starts with it
+        std::string prefix = "fp-";                // every managed object's name starts with it
         std::vector<std::string> interfaces = {"internal"};   // only devices detected here are managed
         std::string default_segment = "default";
         std::vector<Segment> segments;
@@ -71,7 +71,7 @@ namespace fvm {
         std::vector<std::string> protected_macs;      // never classified or moved automatically
         std::map<std::string, std::string> assignments;   // mac -> segment, explicit (config-file pins)
         int retire_after_days = 30;
-        int native_rule_priority = 50;                // priority of GUI-made mvlan-rule-* objects
+        int native_rule_priority = 50;                // priority of GUI-made fp-rule-* objects
         bool adopt_existing = true;                   // reuse an admin's single-MAC address object as the member
         int max_changes = 50;                         // per apply; more waits for the next run
 
@@ -91,15 +91,15 @@ namespace fvm {
 
     // The comment every managed object carries; objects without it are an administrator's and are
     // never modified or deleted.
-    inline constexpr std::string_view marker = "managed by forti-vlan-mac";
+    inline constexpr std::string_view marker = "managed by forti-pihole";
 
-    // Loads and validates; a missing file is ConfigError with a hint to run `forti-vlan-mac init`.
+    // Loads and validates; a missing file is ConfigError with a hint to run `forti-pihole init`.
     Config load_config(const std::filesystem::path& path);
 
     // A starting configuration: the segments and presumptive rules from the example, all disabled
     // from privileged inference. Written by `init`.
     nlohmann::json example_config();
 
-}  // namespace fvm
+}  // namespace fph
 
-#endif  // FORTI_VLAN_MAC_CONFIG_HPP
+#endif  // FORTI_PIHOLE_CONFIG_HPP

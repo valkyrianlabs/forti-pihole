@@ -1,29 +1,29 @@
-# forti-vlan-mac: one reconciliation run of the FortiGate device inventory (a systemd *user* unit;
-# forti-vlan-mac.timer starts it). It reads the forti home (~/.forti, or $FORTI_HOME) of the user whose
+# forti-pihole: one reconciliation run of the FortiGate device inventory (a systemd *user* unit;
+# forti-pihole.timer starts it). It reads the forti home (~/.forti, or $FORTI_HOME) of the user whose
 # manager runs it: device profiles and credentials (managed by `forti configure`), the engine's state
-# and $FORTI_HOME/vlan-mac/ (config.json, state.json, history.jsonl).
+# and $FORTI_HOME/pihole/ (config.json, state.json, history.jsonl).
 #
 # Nothing on the network depends on this unit: when it fails or is stopped, the FortiGate keeps the
 # objects it has and traffic is unaffected (fail-static). A failed run is retried by the next timer
-# tick; `journalctl --user -u forti-vlan-mac` shows why it failed.
+# tick; `journalctl --user -u forti-pihole` shows why it failed.
 #
 # Enable for your user (never enabled by the package):
-#   systemctl --user enable --now forti-vlan-mac.timer
+#   systemctl --user enable --now forti-pihole.timer
 # For runs while you are logged out: loginctl enable-linger "$USER"
-# Another forti home, profile or binary path: systemctl --user edit forti-vlan-mac.service, e.g.
+# Another forti home, profile or binary path: systemctl --user edit forti-pihole.service, e.g.
 #   [Service]
 #   Environment=FORTI_HOME=/srv/forti
 #   ExecStart=
-#   ExecStart=/usr/local/bin/forti-vlan-mac apply --quiet --profile fw01
+#   ExecStart=/usr/local/bin/forti-pihole apply --quiet --profile fw01
 [Unit]
-Description=Reconcile FortiGate device segments (forti-vlan-mac apply)
-Documentation=https://github.com/valkyrianlabs/forti-vlan-mac
+Description=Reconcile FortiGate device segments (forti-pihole apply)
+Documentation=https://github.com/valkyrianlabs/forti-pihole
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/forti-vlan-mac apply --quiet
+ExecStart=/usr/bin/forti-pihole apply --quiet
 # A stuck run (device unreachable past the engine's timeouts) must not block the next tick forever.
 TimeoutStartSec=10min
 Nice=10

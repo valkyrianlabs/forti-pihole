@@ -9,8 +9,8 @@
 // of at least 4, and the old MAC must be offline.
 //
 
-#ifndef FORTI_VLAN_MAC_REASSOCIATE_HPP
-#define FORTI_VLAN_MAC_REASSOCIATE_HPP
+#ifndef FORTI_PIHOLE_REASSOCIATE_HPP
+#define FORTI_PIHOLE_REASSOCIATE_HPP
 
 #include "classify.hpp"
 #include "inventory.hpp"
@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 
-namespace fvm {
+namespace fph {
 
     inline constexpr int candidate_threshold = 4;
 
@@ -35,6 +35,6 @@ namespace fvm {
     // Stable id for a pair: 8 hex digits.
     std::string candidate_id(std::string_view old_mac, std::string_view new_mac);
 
-}  // namespace fvm
+}  // namespace fph
 
-#endif  // FORTI_VLAN_MAC_REASSOCIATE_HPP
+#endif  // FORTI_PIHOLE_REASSOCIATE_HPP

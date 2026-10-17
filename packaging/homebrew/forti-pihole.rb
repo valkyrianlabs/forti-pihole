@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
 # Formula template. `vlr homebrew formula` renders the release url/sha256 into
-# release/homebrew/forti-vlan-mac.rb, which `vlr homebrew publish` commits to valkyrianlabs/homebrew-tap.
+# release/homebrew/forti-pihole.rb, which `vlr homebrew publish` commits to valkyrianlabs/homebrew-tap.
 class FortiVlanMac < Formula
   desc "Keeps FortiGate device inventory segments in native FortiOS address objects"
-  homepage "https://github.com/valkyrianlabs/forti-vlan-mac"
-  url "https://github.com/valkyrianlabs/forti-vlan-mac/releases/download/v0.1.0/forti-vlan-mac-0.1.0.tar.gz"
+  homepage "https://github.com/valkyrianlabs/forti-pihole"
+  url "https://github.com/valkyrianlabs/forti-pihole/releases/download/v0.1.0/forti-pihole-0.1.0.tar.gz"
   sha256 "TODO_REPLACE_WITH_RELEASE_ARCHIVE_SHA256"
   license "MIT"
-  head "https://github.com/valkyrianlabs/forti-vlan-mac.git", branch: "main"
+  head "https://github.com/valkyrianlabs/forti-pihole.git", branch: "main"
 
   # Header-only SDK: needed to compile, not at run time.
   depends_on "forti-api" => :build
@@ -19,7 +19,7 @@ class FortiVlanMac < Formula
   uses_from_macos "curl"
 
   # The command engine, compiled in from forti-cli's source at exactly the revision
-  # subprojects/forti-cli.wrap pins (packaging/forti-cli-pin.sh keeps the two in step). forti-vlan-mac
+  # subprojects/forti-cli.wrap pins (packaging/forti-cli-pin.sh keeps the two in step). forti-pihole
   # needs neither the forti-cli formula nor the `forti` executable at run time; profiles are
   # usually created with `forti configure`, so install valkyrianlabs/tap/forti-cli as well.
   resource "forti-cli" do
@@ -45,16 +45,16 @@ class FortiVlanMac < Formula
   def caveats
     <<~EOS
       Configure a device profile with `forti configure` (valkyrianlabs/tap/forti-cli), then write
-      ~/.forti/vlan-mac/config.json (example: #{opt_pkgshare}/config.example.json) and start with:
-        forti-vlan-mac report
+      ~/.forti/pihole/config.json (example: #{opt_pkgshare}/config.example.json) and start with:
+        forti-pihole report
     EOS
   end
 
   test do
     # Offline: neither needs a profile, a device or the network.
     ENV["FORTI_HOME"] = (testpath/"forti").to_s
-    assert_match "forti-vlan-mac #{version} (engine forti-cli ", shell_output("#{bin}/forti-vlan-mac --version")
-    help = shell_output("#{bin}/forti-vlan-mac --help")
+    assert_match "forti-pihole #{version} (engine forti-cli ", shell_output("#{bin}/forti-pihole --version")
+    help = shell_output("#{bin}/forti-pihole --help")
     %w[report plan apply assign confirm status history].each do |command|
       assert_match command, help
     end

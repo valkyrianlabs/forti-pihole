@@ -9,8 +9,8 @@
 //                     change in what the engine sends, still cannot reach anything else.
 //
 
-#ifndef FORTI_VLAN_MAC_GUARD_HPP
-#define FORTI_VLAN_MAC_GUARD_HPP
+#ifndef FORTI_PIHOLE_GUARD_HPP
+#define FORTI_PIHOLE_GUARD_HPP
 
 #include "config.hpp"
 #include "inventory.hpp"
@@ -21,7 +21,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace fvm {
+namespace fph {
 
     class GuardViolation : public std::logic_error {
     public:
@@ -45,6 +45,6 @@ namespace fvm {
         fortiapi::HttpResponse perform(const fortiapi::HttpRequest& request) override;
     };
 
-}  // namespace fvm
+}  // namespace fph
 
-#endif  // FORTI_VLAN_MAC_GUARD_HPP
+#endif  // FORTI_PIHOLE_GUARD_HPP

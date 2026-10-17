@@ -11,7 +11,7 @@
 
 #include <forti/engine/error.hpp>
 
-#include <forti_vlan_mac_version.hpp>
+#include <forti_pihole_version.hpp>
 
 #include <algorithm>
 #include <charconv>
@@ -20,7 +20,7 @@
 #include <format>
 #include <ostream>
 
-namespace fvm {
+namespace fph {
 
     using json = nlohmann::json;
     namespace fs = std::filesystem;
@@ -175,14 +175,14 @@ namespace fvm {
     }  // namespace
 
     std::string usage_text() {
-        return R"(usage: forti-vlan-mac <command> [options]
+        return R"(usage: forti-pihole <command> [options]
 
 Keeps the FortiGate's device inventory classified into segments: one MAC address object per
 device (<prefix>dev-*) and one address group per segment (<prefix>seg-<segment>), native FortiOS
 objects you can edit in the GUI. Never in the traffic path; nothing breaks if it stops running.
 
 commands:
-  init                    write a starting configuration ($FORTI_HOME/vlan-mac/config.json)
+  init                    write a starting configuration ($FORTI_HOME/pihole/config.json)
   report [-v]             classify the inventory and show what would change (read-only)
   plan                    make an engine plan for the pending changes (read-only preview)
   apply [--max-changes N] plan and apply (as the profile's mode allows); the timer runs this
@@ -194,7 +194,7 @@ commands:
 
 options:
   -p, --profile NAME      forti profile (default: the configuration's, else forti's default)
-  --config PATH           configuration file (default $FORTI_HOME/vlan-mac/config.json)
+  --config PATH           configuration file (default $FORTI_HOME/pihole/config.json)
   --json                  machine-readable output
   -q, --quiet             print only problems (for the timer)
   -v, --verbose           report: offline devices and the reasons for every decision
@@ -211,7 +211,7 @@ Subnet assignment through DHCP is not available: FortiOS behaviour for it is unp
         try {
             options = parse(args);
         } catch (const Usage& e) {
-            err << "forti-vlan-mac: " << e.what() << "\n\n" << usage_text();
+            err << "forti-pihole: " << e.what() << "\n\n" << usage_text();
             return 2;
         }
         if (options.command == "help") {
@@ -219,12 +219,12 @@ Subnet assignment through DHCP is not available: FortiOS behaviour for it is unp
             return 0;
         }
         if (options.command == "version") {
-            out << "forti-vlan-mac " << FORTI_VLAN_MAC_VERSION << " (" << FORTI_VLAN_MAC_BUILT_FROM << ")\n";
+            out << "forti-pihole " << FORTI_PIHOLE_VERSION << " (" << FORTI_PIHOLE_BUILT_FROM << ")\n";
             return 0;
         }
         static const std::vector<std::string> commands = {"init", "report", "plan", "apply", "assign", "confirm", "status", "history"};
         if (std::ranges::find(commands, options.command) == commands.end()) {
-            err << "forti-vlan-mac: unknown command \"" << options.command << "\"\n\n" << usage_text();
+            err << "forti-pihole: unknown command \"" << options.command << "\"\n\n" << usage_text();
             return 2;
         }
 
@@ -233,11 +233,11 @@ Subnet assignment through DHCP is not available: FortiOS behaviour for it is unp
 
         if (options.command == "init") {
             if (fs::exists(config_path)) {
-                err << "forti-vlan-mac: " << config_path.string() << " exists; not overwriting it\n";
+                err << "forti-pihole: " << config_path.string() << " exists; not overwriting it\n";
                 return 3;
             }
             write_private(config_path, example_config().dump(2) + "\n");
-            out << "wrote " << config_path.string() << "\nedit the segments and rules, then run: forti-vlan-mac report\n";
+            out << "wrote " << config_path.string() << "\nedit the segments and rules, then run: forti-pihole report\n";
             return 0;
         }
 
@@ -278,7 +278,7 @@ Subnet assignment through DHCP is not available: FortiOS behaviour for it is unp
                 RunLock lock(env.home.lock());
                 State state = load_state(env.home.state());
                 const Candidate* k = state.candidate(options.positional[0]);
-                if (!k) throw Usage(std::format("no open reassociation candidate {} (run forti-vlan-mac report)", options.positional[0]));
+                if (!k) throw Usage(std::format("no open reassociation candidate {} (run forti-pihole report)", options.positional[0]));
                 Candidate candidate = *k;
                 std::erase_if(state.candidates, [&](const Candidate& c) { return c.id == candidate.id; });
                 if (options.reject) {
@@ -387,7 +387,7 @@ Subnet assignment through DHCP is not available: FortiOS behaviour for it is unp
             auto planned = gateway->plan(request);
             if (!planned.value("ok", false)) {
                 save_state(env.home.state(), state);
-                err << "forti-vlan-mac: planning failed: " << planned["error"].value("message", std::string()) << "\n";
+                err << "forti-pihole: planning failed: " << planned["error"].value("message", std::string()) << "\n";
                 return exit_for(planned["error"].value("code", std::string()));
             }
             auto plan_id = planned["data"].value("id", std::string());
@@ -400,7 +400,7 @@ Subnet assignment through DHCP is not available: FortiOS behaviour for it is unp
                     out << report.dump(2) << "\n";
                 } else {
                     out << report_text(run, options.verbose);
-                    out << std::format("\nplan {} ({}; risk {}). Apply with: forti-vlan-mac apply\n", plan_id,
+                    out << std::format("\nplan {} ({}; risk {}). Apply with: forti-pihole apply\n", plan_id,
                                        planned["data"].value("summary", std::string()), planned["data"].value("risk", std::string()));
                 }
                 return 0;
@@ -443,32 +443,32 @@ Subnet assignment through DHCP is not available: FortiOS behaviour for it is unp
             append_history(env.home.history(), entry);
             save_state(env.home.state(), state);
             if (code == "approval_required")
-                err << std::format("plan {} needs your approval (guarded profile): forti approve {}, then run forti-vlan-mac apply again\n",
+                err << std::format("plan {} needs your approval (guarded profile): forti approve {}, then run forti-pihole apply again\n",
                                    plan_id, plan_id);
             else if (code == "policy_denied")
                 err << std::format("the profile is read-only: nothing applied. Plan {} shows the change; allow changes with forti configure\n",
                                    plan_id);
             else
-                err << "forti-vlan-mac: apply " << plan_id << " failed (" << code << "): " << error.value("message", std::string())
+                err << "forti-pihole: apply " << plan_id << " failed (" << code << "): " << error.value("message", std::string())
                     << "\n  the next run re-reads the FortiGate and plans again\n";
             return exit_for(code);
         } catch (const Usage& e) {
-            err << "forti-vlan-mac: " << e.what() << "\n";
+            err << "forti-pihole: " << e.what() << "\n";
             return 2;
         } catch (const ConfigError& e) {
-            err << "forti-vlan-mac: " << e.what() << "\n";
+            err << "forti-pihole: " << e.what() << "\n";
             return 3;
         } catch (const StateError& e) {
-            err << "forti-vlan-mac: " << e.what() << "\n";
+            err << "forti-pihole: " << e.what() << "\n";
             return 3;
         } catch (const GatewayError& e) {
-            err << "forti-vlan-mac: reading the FortiGate failed (" << e.code() << "): " << e.what()
+            err << "forti-pihole: reading the FortiGate failed (" << e.code() << "): " << e.what()
                 << "\n  nothing was changed\n";
             return exit_for(e.code());
         } catch (const GuardViolation& e) {
-            err << "forti-vlan-mac: internal error, refused by the write guard: " << e.what() << "\n  nothing was sent\n";
+            err << "forti-pihole: internal error, refused by the write guard: " << e.what() << "\n  nothing was sent\n";
             return 1;
         }
     }
 
-}  // namespace fvm
+}  // namespace fph

@@ -1,11 +1,11 @@
-# forti-vlan-mac
+# forti-pihole
 
-`forti-vlan-mac`, a FortiGate companion that keeps the device inventory classified into logical
+`forti-pihole`, a FortiGate companion that keeps the device inventory classified into logical
 segments in **native FortiOS objects**. It reads the FortiGate's device inventory and DHCP data,
 classifies devices by MAC with operator rules, and reconciles a MAC address object per device
-(`mvlan-dev-*`) and an address group per segment (`mvlan-seg-<segment>`), which the operator's own
+(`fp-dev-*`) and an address group per segment (`fp-seg-<segment>`), which the operator's own
 policies reference. Dynamic device-identification addresses the operator creates in the GUI
-(`mvlan-rule-*`) are read as rules. C++23, Meson. It links **forti-engine** (built from forti-cli's
+(`fp-rule-*`) are read as rules. C++23, Meson. It links **forti-engine** (built from forti-cli's
 source as a subproject, exactly as forti-mcp does) and through it forti-api.
 
 It is **never in the traffic path**: a CLI (`init`, `report`, `plan`, `apply`, `assign`, `confirm`,
@@ -19,23 +19,23 @@ ln -sfn "$(cd ../forti-api && pwd)" subprojects/forti-api
 meson setup build/dev -Dtests=enabled --buildtype=debugoptimized
 meson compile -C build/dev -j "$(ci/build-jobs)"   # no TU needs more than ~1.2 GB (GCC)
 meson test -C build/dev --print-errorlogs           # suite: unit (engine on a scripted transport)
-ci/smoke-test.sh build/dev/src/forti-vlan-mac       # --version, --help, usage exit 2, nothing written
+ci/smoke-test.sh build/dev/src/forti-pihole       # --version, --help, usage exit 2, nothing written
 ```
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `src/` | The program: inventory reading, MAC classification, reconciliation planning, the guard transport, state and history, the CLI (`src/meson.build` defines `forti_vlan_mac_exe`) |
+| `src/` | The program: inventory reading, MAC classification, reconciliation planning, the guard transport, state and history, the CLI (`src/meson.build` defines `forti_pihole_exe`) |
 | `tests/` | GoogleTest (`suite 'unit'`), the engine on a scripted transport and a temporary forti home |
-| `packaging/systemd/` | `forti-vlan-mac.service` (oneshot `apply --quiet`) and `.timer` (every 15 min), user units, installed on Linux and never enabled |
-| `packaging/config.example.json` | Installed to `share/forti-vlan-mac/`; the starting point for `$FORTI_HOME/vlan-mac/config.json` |
+| `packaging/systemd/` | `forti-pihole.service` (oneshot `apply --quiet`) and `.timer` (every 15 min), user units, installed on Linux and never enabled |
+| `packaging/config.example.json` | Installed to `share/forti-pihole/`; the starting point for `$FORTI_HOME/pihole/config.json` |
 | `release.toml`, `debian/`, `packaging/homebrew/`, `.release/` | vl-release contract, Debian and Homebrew packaging, staged release docs (`.claude/context/release.md`) |
 | `packaging/forti-cli-pin.sh` | Keeps package builds on the wrap's forti-cli revision (`vendor` for Debian, `check`/`update` for the formula's resource) |
 | `ci/`, `.github/` | CI container, smoke test, CI, package and release workflows |
-| `docs/` | The docs package (pmdocs, docs set `forti-vlan-mac`); Payload Markdown, `.claude/skills/payload-markdown*` |
+| `docs/` | The docs package (pmdocs, docs set `forti-pihole`); Payload Markdown, `.claude/skills/payload-markdown*` |
 
-Files: `$FORTI_HOME/vlan-mac/config.json` (operator), `state.json` and `history.jsonl` (the program);
+Files: `$FORTI_HOME/pihole/config.json` (operator), `state.json` and `history.jsonl` (the program);
 `FORTI_HOME` defaults to `~/.forti`. Profiles and credentials are the engine's (`forti configure`).
 
 ## Packaging
@@ -52,16 +52,16 @@ user-visible changes and run `vlr check` (`.claude/skills/vl-release/`). Release
    path only. Never construct URLs, set headers or call the SDK for a write here; the only direct
    device access is reads through `Engine::read`. If the engine needs a change, ask the orchestrator;
    do not patch the forti-cli subproject.
-2. **Write allowlist.** forti-vlan-mac may only create, update or delete `firewall/address` and
-   `firewall/addrgrp` objects whose name starts with the configured prefix (default `mvlan-`) **and**
-   that carry the ownership marker comment `managed by forti-vlan-mac`. It never writes interfaces,
+2. **Write allowlist.** forti-pihole may only create, update or delete `firewall/address` and
+   `firewall/addrgrp` objects whose name starts with the configured prefix (default `fp-`) **and**
+   that carry the ownership marker comment `managed by forti-pihole`. It never writes interfaces,
    policies, routing, admin or api-user accounts, system settings, DHCP (until the DHCP
    subnet-assignment feature is proven and explicitly enabled), users, switch-controller or 802.1X.
    This is enforced in code by a **guard transport** under the engine that refuses every other
    mutating request before it is sent; a check in the planner is not enough on its own. Never widen
    the allowlist without a recorded decision.
 3. **Administrator objects are never modified or deleted.** An object without the marker (including
-   a prefixed one, such as the operator's `mvlan-rule-*` addresses) is read-only, even when its name
+   a prefixed one, such as the operator's `fp-rule-*` addresses) is read-only, even when its name
    collides; it may be referenced as a group member. When in doubt, leave it and report it.
 4. **No live firewall in tests or CI.** Tests use the scripted transport and temporary forti homes;
    never touch the user's real config, state, secret store or timer. Live checks against a lab

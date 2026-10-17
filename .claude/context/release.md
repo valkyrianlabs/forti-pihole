@@ -1,6 +1,6 @@
-# Releasing forti-vlan-mac
+# Releasing forti-pihole
 
-forti-vlan-mac releases with vl-release (`vlr`, ValkyrianLabs convention, same as forti-mcp, forti-cli
+forti-pihole releases with vl-release (`vlr`, ValkyrianLabs convention, same as forti-mcp, forti-cli
 and forti-api). The repository contract is `release.toml`; release CI is
 `.github/workflows/release.yml` and only calls `vlr` commands (plus `packaging/forti-cli-pin.sh`,
 below). The generic workflow is in `.claude/skills/vl-release/SKILL.md`, this repository's specifics in
@@ -10,11 +10,11 @@ below). The generic workflow is in `.claude/skills/vl-release/SKILL.md`, this re
 
 | Channel | Artifact | Built by |
 |---|---|---|
-| APT (`apt.valkyrianlabs.com`, suite `stable`, `main`) | `forti-vlan-mac_<v>-1_amd64.deb`: `/usr/bin/forti-vlan-mac`, the systemd user units in `/usr/lib/systemd/user/` (installed, never enabled), `/usr/share/forti-vlan-mac/config.example.json`, copyright | `vlr build-deb` (`debian/`, against `libforti-api-dev >= 1.1.1`) |
-| GitHub release | the .deb, `forti-vlan-mac-<v>.tar.gz` (prepared tracked tree), the Homebrew bottles, `SHA256SUMS` | `vlr source-archive`, `vlr checksums`, `vlr github-release` |
-| Homebrew (`valkyrianlabs/tap`) | `Formula/forti-vlan-mac.rb`, builds from the source archive (no systemd units on macOS) | `vlr homebrew formula` / `publish` (`packaging/homebrew/forti-vlan-mac.rb`) |
+| APT (`apt.valkyrianlabs.com`, suite `stable`, `main`) | `forti-pihole_<v>-1_amd64.deb`: `/usr/bin/forti-pihole`, the systemd user units in `/usr/lib/systemd/user/` (installed, never enabled), `/usr/share/forti-pihole/config.example.json`, copyright | `vlr build-deb` (`debian/`, against `libforti-api-dev >= 1.1.1`) |
+| GitHub release | the .deb, `forti-pihole-<v>.tar.gz` (prepared tracked tree), the Homebrew bottles, `SHA256SUMS` | `vlr source-archive`, `vlr checksums`, `vlr github-release` |
+| Homebrew (`valkyrianlabs/tap`) | `Formula/forti-pihole.rb`, builds from the source archive (no systemd units on macOS) | `vlr homebrew formula` / `publish` (`packaging/homebrew/forti-pihole.rb`) |
 
-forti-vlan-mac installs independently, like forti-mcp (architecture decision 3): neither channel
+forti-pihole installs independently, like forti-mcp (architecture decision 3): neither channel
 depends on the forti-cli package or the `forti` executable, and no engine library or headers ship. The
 package *recommends* forti-cli (operators create profiles with `forti configure`) and
 `valkyrianlabs-archive-keyring` (decision 27: recommend, never depend).
@@ -24,7 +24,7 @@ workflow's clean-install test checks that no `timers.target.wants` link appears.
 
 ## Engine source
 
-forti-vlan-mac compiles forti-cli's engine (`engine/`, Meson dependency `forti-engine`) from source, as
+forti-pihole compiles forti-cli's engine (`engine/`, Meson dependency `forti-engine`) from source, as
 the subproject `subprojects/forti-cli`, exactly as forti-mcp does. **`subprojects/forti-cli.wrap` is
 the single pin**: a full commit id (`revision`; today forti-cli v0.4.2, the engine forti-mcp 0.4.1
 ships). Every build path uses exactly that revision:
@@ -41,8 +41,8 @@ resource is the wrap's revision and that GitHub serves the declared sha256. **Bu
 change `revision` in the wrap, run `packaging/forti-cli-pin.sh update` (rewrites the resource url and
 sha256), commit both. Pin a forti-cli release tag's commit.
 
-The built binary says what it was built from: `forti-vlan-mac --version` prints
-`forti-vlan-mac 0.1.0 (engine forti-cli 468f9e1, forti-api 1.1.1)`. The revision is the wrap's for
+The built binary says what it was built from: `forti-pihole --version` prints
+`forti-pihole 0.1.0 (engine forti-cli 468f9e1, forti-api 1.1.1)`. The revision is the wrap's for
 package builds (an unpacked archive has no Git metadata), or the actual HEAD (`-dirty` with local
 changes) when `subprojects/forti-cli` is a Git checkout. CI's clean-install and formula checks compare
 it with the wrap. Why the engine is not vendored into the source archive: forti-mcp's
@@ -86,14 +86,14 @@ repository access).
 
 ## Before the first release (checklist)
 
-- [ ] The GitHub repository `valkyrianlabs/forti-vlan-mac` exists (not created yet).
+- [ ] The GitHub repository `valkyrianlabs/forti-pihole` exists (not created yet).
 - [ ] Environment `Production` on it (`publish-apt`, `homebrew-tap`, `docs` use it; add reviewers if
       publication should need a click).
 - [ ] The org secrets/variables above are available to this repository; `HOMEBREW_TAP_TOKEN` can push
       to `valkyrianlabs/homebrew-tap`.
 - [ ] The self-hosted VPS runner (labels `self-hosted, Linux, X64, ubuntu-latest-lts`) serves this
       repository (runner group access), with rootless Podman as for forti-mcp.
-- [ ] The docs set `forti-vlan-mac` exists on the docs site and trusts this repository's workflows over
+- [ ] The docs set `forti-pihole` exists on the docs site and trusts this repository's workflows over
       GitHub OIDC. Until then CI's dry-run sync on pushes to `main` fails.
 - [ ] If `main` is protected, `github-actions[bot]` may push the `finalize` commit.
 - [ ] `libforti-api-dev >= 1.1.1` is in the APT index and `forti-api` 1.1.1 is in the tap (both are).

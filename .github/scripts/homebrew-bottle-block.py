@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Add a `bottle do` block to a rendered formula, from the JSON files `brew bottle --json` wrote.
 
-    homebrew-bottle-block.py release/homebrew/forti-vlan-mac.rb bottle/*.bottle.json
+    homebrew-bottle-block.py release/homebrew/forti-pihole.rb bottle/*.bottle.json
 
 The bottles are release assets of the same GitHub release (root_url). vl-release renders the formula
 from packaging/homebrew/ and publishes it as it is; its own checks read only the top-level url and

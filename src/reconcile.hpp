@@ -16,8 +16,8 @@
 // Segment groups whose segment left the configuration are reported, never deleted.
 //
 
-#ifndef FORTI_VLAN_MAC_RECONCILE_HPP
-#define FORTI_VLAN_MAC_RECONCILE_HPP
+#ifndef FORTI_PIHOLE_RECONCILE_HPP
+#define FORTI_PIHOLE_RECONCILE_HPP
 
 #include "classify.hpp"
 #include "connectivity.hpp"
@@ -31,7 +31,7 @@
 #include <string>
 #include <vector>
 
-namespace fvm {
+namespace fph {
 
     struct Change {
         std::string kind;   // create-group | create-object | move | place | retire | comment
@@ -63,6 +63,6 @@ namespace fvm {
     std::string object_comment(const Device& device);
     std::string group_comment(const Segment& segment);
 
-}  // namespace fvm
+}  // namespace fph
 
-#endif  // FORTI_VLAN_MAC_RECONCILE_HPP
+#endif  // FORTI_PIHOLE_RECONCILE_HPP

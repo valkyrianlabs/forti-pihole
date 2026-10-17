@@ -1,6 +1,6 @@
 ---
 title: Command line
-description: forti-vlan-mac's subcommands, options, exit statuses, environment and files.
+description: forti-pihole's subcommands, options, exit statuses, environment and files.
 order: 90
 status: published
 tags:
@@ -9,24 +9,24 @@ tags:
 
 # Command line
 
-forti-vlan-mac is one executable with subcommands. `report`, `plan`, `status` and `history` never
+forti-pihole is one executable with subcommands. `report`, `plan`, `status` and `history` never
 write to the FortiGate; `apply` does; `init`, `assign` and `confirm` change only local files.
 
 :::toc[On this page]{depth="2" theme="compact"}
 :::
 
 ```text
-forti-vlan-mac init
-forti-vlan-mac report [-v]
-forti-vlan-mac plan
-forti-vlan-mac apply [--max-changes N]
-forti-vlan-mac assign MAC SEGMENT
-forti-vlan-mac assign MAC auto
-forti-vlan-mac confirm ID [--reject]
-forti-vlan-mac status
-forti-vlan-mac history [--count N]
-forti-vlan-mac --version
-forti-vlan-mac --help
+forti-pihole init
+forti-pihole report [-v]
+forti-pihole plan
+forti-pihole apply [--max-changes N]
+forti-pihole assign MAC SEGMENT
+forti-pihole assign MAC auto
+forti-pihole confirm ID [--reject]
+forti-pihole status
+forti-pihole history [--count N]
+forti-pihole --version
+forti-pihole --help
 ```
 
 ## Options
@@ -34,18 +34,18 @@ forti-vlan-mac --help
 | Option | Meaning |
 |---|---|
 | `-p`, `--profile NAME` | The forti device profile to connect with. Default: the configuration's `profile`, else forti's default profile |
-| `--config PATH` | The configuration file. Default `$FORTI_HOME/vlan-mac/config.json` |
+| `--config PATH` | The configuration file. Default `$FORTI_HOME/pihole/config.json` |
 | `--json` | Machine-readable output |
 | `-q`, `--quiet` | Print only problems. The timer's service uses it |
 | `-v`, `--verbose` | `report`: also offline devices, and the reason for every decision |
-| `--version` | The version and what it was built from: `forti-vlan-mac 0.1.0 (engine forti-cli 468f9e1, forti-api 1.1.1)` |
+| `--version` | The version and what it was built from: `forti-pihole 0.1.0 (engine forti-cli 468f9e1, forti-api 1.1.1)` |
 | `-h`, `--help` | The usage |
 
 ## Subcommands
 
 ### init
 
-Writes a starting configuration to `$FORTI_HOME/vlan-mac/config.json` (or `--config PATH`). It never
+Writes a starting configuration to `$FORTI_HOME/pihole/config.json` (or `--config PATH`). It never
 overwrites an existing file. [Configuration](/reference/configuration) describes every key.
 
 ### report
@@ -62,7 +62,7 @@ reads the device and never writes to it; the plan is stored like any forti plan.
 ### apply
 
 Plans the pending changes and applies them through the forti engine, as the device profile's mode
-allows. The timer runs `forti-vlan-mac apply --quiet`.
+allows. The timer runs `forti-pihole apply --quiet`.
 
 | Option | Meaning |
 |---|---|
@@ -79,8 +79,8 @@ A successful apply prints the forti rollback plan; `forti apply <rollback_id>` u
 ### assign
 
 ```text
-forti-vlan-mac assign MAC SEGMENT
-forti-vlan-mac assign MAC auto
+forti-pihole assign MAC SEGMENT
+forti-pihole assign MAC auto
 ```
 
 Pins a device to a segment, privileged segments included. A pin outranks every rule. `auto` drops
@@ -91,8 +91,8 @@ object to another segment group in the GUI pins it the same way
 ### confirm
 
 ```text
-forti-vlan-mac confirm ID
-forti-vlan-mac confirm ID --reject
+forti-pihole confirm ID
+forti-pihole confirm ID --reject
 ```
 
 Accepts a reassociation candidate (the id from `report`): the new MAC address takes over the old
@@ -105,7 +105,7 @@ Shows the configuration, the profile's mode, the last apply and a plan that is w
 
 ### history
 
-Shows the last applies (default 20; `--count N` for more), from `$FORTI_HOME/vlan-mac/history.jsonl`:
+Shows the last applies (default 20; `--count N` for more), from `$FORTI_HOME/pihole/history.jsonl`:
 time, status, plan id and summary.
 
 ## Exit status
@@ -123,9 +123,9 @@ time, status, plan id and summary.
 | Name | Meaning |
 |---|---|
 | `FORTI_HOME` | The forti home; default `~/.forti` |
-| `$FORTI_HOME/vlan-mac/config.json` | The configuration |
-| `$FORTI_HOME/vlan-mac/state.json` | What forti-vlan-mac has learned about each device between runs: pins, candidates, a pending plan |
-| `$FORTI_HOME/vlan-mac/history.jsonl` | One JSON object per apply |
+| `$FORTI_HOME/pihole/config.json` | The configuration |
+| `$FORTI_HOME/pihole/state.json` | What forti-pihole has learned about each device between runs: pins, candidates, a pending plan |
+| `$FORTI_HOME/pihole/history.jsonl` | One JSON object per apply |
 
 Device profiles, credentials, plans and the engine's audit log are the forti home's, as for `forti`
 and forti-mcp.

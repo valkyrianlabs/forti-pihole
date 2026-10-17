@@ -4,13 +4,13 @@
 // an operator's GUI changes, keep devices it has stopped seeing for a grace period, and hold
 // reassociation candidates until the operator decides.
 //
-//   $FORTI_HOME/vlan-mac/state.json     0600, written atomically (temp file + rename)
-//   $FORTI_HOME/vlan-mac/history.jsonl  one line per apply (append-only)
-//   $FORTI_HOME/vlan-mac/lock           flock: one run at a time (timer vs. a manual run)
+//   $FORTI_HOME/pihole/state.json     0600, written atomically (temp file + rename)
+//   $FORTI_HOME/pihole/history.jsonl  one line per apply (append-only)
+//   $FORTI_HOME/pihole/lock           flock: one run at a time (timer vs. a manual run)
 //
 
-#ifndef FORTI_VLAN_MAC_STATE_HPP
-#define FORTI_VLAN_MAC_STATE_HPP
+#ifndef FORTI_PIHOLE_STATE_HPP
+#define FORTI_PIHOLE_STATE_HPP
 
 #include <nlohmann/json.hpp>
 
@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 
-namespace fvm {
+namespace fph {
 
     struct DeviceRecord {
         std::string label, hostname, vendor, family, os, os_version;
@@ -75,13 +75,13 @@ namespace fvm {
     };
 
     struct Home {
-        std::filesystem::path dir;   // $FORTI_HOME/vlan-mac
+        std::filesystem::path dir;   // $FORTI_HOME/pihole
         [[nodiscard]] std::filesystem::path config() const { return dir / "config.json"; }
         [[nodiscard]] std::filesystem::path state() const { return dir / "state.json"; }
         [[nodiscard]] std::filesystem::path history() const { return dir / "history.jsonl"; }
         [[nodiscard]] std::filesystem::path lock() const { return dir / "lock"; }
 
-        // The forti home the engine uses ($FORTI_HOME, else ~/.forti), plus "vlan-mac".
+        // The forti home the engine uses ($FORTI_HOME, else ~/.forti), plus "pihole".
         static Home from_env();
     };
 
@@ -112,6 +112,6 @@ namespace fvm {
         RunLock& operator=(const RunLock&) = delete;
     };
 
-}  // namespace fvm
+}  // namespace fph
 
-#endif  // FORTI_VLAN_MAC_STATE_HPP
+#endif  // FORTI_PIHOLE_STATE_HPP

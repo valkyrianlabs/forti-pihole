@@ -6,8 +6,8 @@
 #include <classify.hpp>
 #include <reconcile.hpp>
 
-using namespace fvm;
-using namespace fvm::test;
+using namespace fph;
+using namespace fph::test;
 
 namespace {
     constexpr std::int64_t now = 1'800'000'100;
@@ -44,16 +44,16 @@ TEST(Reconcile, FirstRunCreatesGroupsAndObjects) {
     EXPECT_EQ(changes.operations.front()["resource"], "firewall/address");
     for (const auto& op: changes.operations) {
         if (op["op"] != "create") continue;
-        EXPECT_TRUE(op["object"]["name"].get<std::string>().starts_with("mvlan-"));
+        EXPECT_TRUE(op["object"]["name"].get<std::string>().starts_with("fp-"));
         EXPECT_NE(op["object"]["comment"].get<std::string>().find(marker), std::string::npos);
     }
     State state;
     apply_to(fake, changes, state);
-    auto iot = fake.members("mvlan-seg-iot_untrusted");
+    auto iot = fake.members("fp-seg-iot_untrusted");
     EXPECT_EQ(iot.size(), 2u);
-    EXPECT_EQ(fake.members("mvlan-seg-tvs").size(), 1u);
-    EXPECT_EQ(fake.members("mvlan-seg-owner").size(), 0u);   // privileged: nothing inferred
-    EXPECT_EQ(fake.members("mvlan-seg-default").size(), 3u);
+    EXPECT_EQ(fake.members("fp-seg-tvs").size(), 1u);
+    EXPECT_EQ(fake.members("fp-seg-owner").size(), 0u);   // privileged: nothing inferred
+    EXPECT_EQ(fake.members("fp-seg-default").size(), 3u);
 }
 
 TEST(Reconcile, IsIdempotent) {
@@ -75,14 +75,14 @@ TEST(Reconcile, PinMovesADeviceAndKeepsAdministratorMembers) {
     apply_to(fake, plan_for(fake, config), state);
     // The operator also put an object of their own into the tvs group.
     fake.addresses["Projector"] = {{"name", "Projector"}, {"type", "ipmask"}, {"subnet", "192.0.2.99 255.255.255.255"}, {"comment", ""}};
-    fake.groups["mvlan-seg-tvs"]["member"].push_back({{"name", "Projector"}});
+    fake.groups["fp-seg-tvs"]["member"].push_back({{"name", "Projector"}});
     state.devices[plug1].written_segment = "iot_untrusted";
     state.pins[plug1] = {"tvs", "assign", now};
     auto changes = plan_for(fake, config, state);
     apply_to(fake, changes, state);
-    auto tvs = fake.members("mvlan-seg-tvs");
+    auto tvs = fake.members("fp-seg-tvs");
     EXPECT_NE(std::ranges::find(tvs, "Projector"), tvs.end());
-    EXPECT_EQ(fake.members("mvlan-seg-iot_untrusted").size(), 1u);
+    EXPECT_EQ(fake.members("fp-seg-iot_untrusted").size(), 1u);
     EXPECT_EQ(tvs.size(), 3u);
     EXPECT_TRUE(plan_for(fake, config, state).empty());
 }
@@ -111,7 +111,7 @@ TEST(Reconcile, RetiresOnlyLongGoneManagedObjects) {
     ASSERT_EQ(count_ops(changes, "delete", "firewall/address"), 1u);
     EXPECT_EQ(changes.retired, std::vector<std::string>{gone});
     apply_to(fake, changes, state);
-    EXPECT_EQ(fake.members("mvlan-seg-default").size(), 2u);
+    EXPECT_EQ(fake.members("fp-seg-default").size(), 2u);
 
     // Within the grace period nothing is retired.
     FakeGateway fresh;
@@ -167,7 +167,7 @@ TEST(Reconcile, ConnectivityCheckBlocksARouteLoss) {
          "dstintf": [{"name": "internal1"}], "srcaddr": [{"name": "LAN"}], "dstaddr": [{"name": "DNS Server"}],
          "service": [{"name": "DNS"}], "users": [], "groups": []},
         {"policyid": 30, "name": "iot out", "status": "enable", "action": "accept", "srcintf": [{"name": "internal"}],
-         "dstintf": [{"name": "wan1"}], "srcaddr": [{"name": "mvlan-seg-iot_untrusted"}], "dstaddr": [{"name": "all"}],
+         "dstintf": [{"name": "wan1"}], "srcaddr": [{"name": "fp-seg-iot_untrusted"}], "dstaddr": [{"name": "all"}],
          "service": [{"name": "HTTPS"}], "users": [], "groups": []}
     ])");
     // Moving a plug to tvs would cut its internet: refused, it stays where it is.

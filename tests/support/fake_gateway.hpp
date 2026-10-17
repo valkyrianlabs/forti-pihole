@@ -5,8 +5,8 @@
 // (02:...), addresses from RFC 5737; nothing here resembles a real network.
 //
 
-#ifndef FORTI_VLAN_MAC_TESTS_FAKE_GATEWAY_HPP
-#define FORTI_VLAN_MAC_TESTS_FAKE_GATEWAY_HPP
+#ifndef FORTI_PIHOLE_TESTS_FAKE_GATEWAY_HPP
+#define FORTI_PIHOLE_TESTS_FAKE_GATEWAY_HPP
 
 #include <gateway.hpp>
 
@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-namespace fvm::test {
+namespace fph::test {
 
     using json = nlohmann::json;
 
@@ -160,6 +160,6 @@ namespace fvm::test {
         }
     };
 
-}  // namespace fvm::test
+}  // namespace fph::test
 
-#endif  // FORTI_VLAN_MAC_TESTS_FAKE_GATEWAY_HPP
+#endif  // FORTI_PIHOLE_TESTS_FAKE_GATEWAY_HPP

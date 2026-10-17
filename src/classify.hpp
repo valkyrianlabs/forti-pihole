@@ -6,7 +6,7 @@
 //   2. assignment  config.json "assignments" (explicit, file)
 //   3. pin         explicit operator decisions: `assign`, `confirm`, or a move made in the FortiGate GUI
 //                  (detected as a placement the companion did not write)
-//   4. rule        presumptive: config rules and GUI-made mvlan-rule-<segment>-<label> dynamic objects;
+//   4. rule        presumptive: config rules and GUI-made fp-rule-<segment>-<label> dynamic objects;
 //                  the highest priority wins, a tie between segments is ambiguous
 //   5. default     unknown and ambiguous devices
 //
@@ -14,8 +14,8 @@
 // them, and native rule objects naming one are ignored with a warning.
 //
 
-#ifndef FORTI_VLAN_MAC_CLASSIFY_HPP
-#define FORTI_VLAN_MAC_CLASSIFY_HPP
+#ifndef FORTI_PIHOLE_CLASSIFY_HPP
+#define FORTI_PIHOLE_CLASSIFY_HPP
 
 #include "config.hpp"
 #include "inventory.hpp"
@@ -28,7 +28,7 @@
 #include <string>
 #include <vector>
 
-namespace fvm {
+namespace fph {
 
     struct RuleMatch {
         std::string segment, rule;   // rule: config rule name or the native object's name
@@ -87,6 +87,6 @@ namespace fvm {
     // unique in the snapshot, at most 79 characters.
     std::string device_object_name(const Config& config, const Device& device, const Snapshot& snapshot);
 
-}  // namespace fvm
+}  // namespace fph
 
-#endif  // FORTI_VLAN_MAC_CLASSIFY_HPP
+#endif  // FORTI_PIHOLE_CLASSIFY_HPP

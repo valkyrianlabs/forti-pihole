@@ -5,8 +5,8 @@
 // (architecture.md, "Engine contract"), so nothing here re-implements engine semantics.
 //
 
-#ifndef FORTI_VLAN_MAC_GATEWAY_HPP
-#define FORTI_VLAN_MAC_GATEWAY_HPP
+#ifndef FORTI_PIHOLE_GATEWAY_HPP
+#define FORTI_PIHOLE_GATEWAY_HPP
 
 #include <nlohmann/json.hpp>
 
@@ -17,7 +17,7 @@ namespace forti::engine {
     class Engine;
 }
 
-namespace fvm {
+namespace fph {
 
     struct Config;
 
@@ -49,6 +49,6 @@ namespace fvm {
     // SDK transport so nothing outside the managed objects can be written even by a bug here.
     std::unique_ptr<Gateway> engine_gateway(const Config& config);
 
-}  // namespace fvm
+}  // namespace fph
 
-#endif  // FORTI_VLAN_MAC_GATEWAY_HPP
+#endif  // FORTI_PIHOLE_GATEWAY_HPP
