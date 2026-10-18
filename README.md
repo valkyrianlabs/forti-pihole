@@ -1,3 +1,5 @@
+![forti-pihole](https://media.valkyrianlabs.com/forti-pihole.png)
+
 # forti-pihole
 
 **Unified FortiGate network identity and Pi-hole DNS policy synchronization.**
