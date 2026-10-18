@@ -1,0 +1,51 @@
+[project]
+title = "forti-pihole"
+description = "Unified FortiGate network identity and Pi-hole DNS policy synchronization."
+
+[[stack.languages]]
+name = "C++23"
+
+[[stack.libraries]]
+name = "forti-api"
+
+[[stack.libraries]]
+name = "forti-cli engine"
+
+[[stack.libraries]]
+name = "libcurl"
+
+[[stack.libraries]]
+name = "nlohmann/json"
+
+[[stack.apis]]
+name = "FortiOS REST API"
+
+[[stack.apis]]
+name = "Pi-hole v6 API"
+
+[[stack.services]]
+name = "systemd"
+
+[[stack.build]]
+name = "Meson"
+
+[[stack.build]]
+name = "Ninja"
+
+[[stack.testing]]
+name = "GoogleTest"
+
+[[stack.testing]]
+name = "ASan/UBSan"
+
+[[stack.packaging]]
+name = "Debian packages"
+
+[[stack.packaging]]
+name = "Homebrew"
+
+[[stack.infrastructure]]
+name = "GitHub Actions"
+
+[[stack.infrastructure]]
+name = "Podman"
