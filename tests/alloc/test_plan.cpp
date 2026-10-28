@@ -551,6 +551,21 @@ TEST(Render, ProposalJson) {
     EXPECT_EQ(c[1]["ip"], "10.0.0.1");
 }
 
+// AddressSanitizer slows the planner about eightfold: the Linux CI build (-O0, ASan/UBSan) takes 4-5 s
+// on this test, an unsanitized -O0 build about 0.5 s and -O2 about 30 ms.
+#if defined(__SANITIZE_ADDRESS__)
+#define FPH_TEST_ASAN 1
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define FPH_TEST_ASAN 1
+#endif
+#endif
+#ifdef FPH_TEST_ASAN
+constexpr auto large_network_bound = std::chrono::seconds(30);
+#else
+constexpr auto large_network_bound = std::chrono::seconds(5);
+#endif
+
 TEST(Scale, LargeNetworkStaysFast) {
     // A /16 with a pool over nearly all of it, a few thousand leases and twenty groups: the
     // enumeration of pool changes must stay cheap.
@@ -565,7 +580,7 @@ TEST(Scale, LargeNetworkStaysFast) {
     auto start = std::chrono::steady_clock::now();
     auto p = propose(input);
     auto elapsed = std::chrono::steady_clock::now() - start;
-    EXPECT_LT(elapsed, std::chrono::seconds(5));
+    EXPECT_LT(elapsed, large_network_bound);
     EXPECT_TRUE(p.complete());
     expect_new_slices_clean(input, p);
 }
