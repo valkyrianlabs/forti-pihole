@@ -42,7 +42,7 @@ applies nothing, `guarded` waits for your `forti approve`, `autonomous` applies 
 brew install valkyrianlabs/tap/forti-cli valkyrianlabs/tap/forti-pihole
 ```
 
-Recent Homebrew versions ask you to trust a third-party tap first (`brew trust valkyrianlabs/tap`).
+No `brew tap` or `brew trust` step: Homebrew trusts the formulae named in full on the command line.
 `forti-cli` provides `forti configure`; forti-pihole has the engine compiled in and does not need it at
 run time.
 
